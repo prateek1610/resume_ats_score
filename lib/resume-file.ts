@@ -44,6 +44,15 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
   }
 }
 
+async function disposePdf(pdf: unknown) {
+  const loadingTask = (pdf as {
+    loadingTask?: { destroy?: () => Promise<void> };
+  }).loadingTask;
+  if (typeof loadingTask?.destroy === "function") {
+    await loadingTask.destroy();
+  }
+}
+
 export async function extractResumeText(file: File) {
   const extension = getFileExtension(file.name);
   const data = await file.arrayBuffer();
@@ -54,16 +63,21 @@ export async function extractResumeText(file: File) {
       getDocumentProxy(new Uint8Array(data), { maxImageSize: 16_777_216 }),
       6_000,
     );
-    if (pdf.numPages > 15) {
-      await (pdf as unknown as { destroy(): Promise<void> }).destroy();
-      throw new Error("PDF resumes are limited to 15 pages.");
+    try {
+      if (pdf.numPages > 15) {
+        throw new Error("PDF resumes are limited to 15 pages.");
+      }
+      const extracted = await withTimeout(extractText(pdf, { mergePages: true }), 8_000);
+      text = extracted.text;
+    } finally {
+      await disposePdf(pdf);
     }
-    const extracted = await withTimeout(extractText(pdf, { mergePages: true }), 8_000);
-    text = extracted.text;
-    await (pdf as unknown as { destroy(): Promise<void> }).destroy();
   } else if (extension === "docx") {
     const mammoth = await import("mammoth");
-    const extracted = await withTimeout(mammoth.extractRawText({ arrayBuffer: data }), 8_000);
+    const extracted = await withTimeout(
+      mammoth.extractRawText({ buffer: data as unknown as Buffer }),
+      8_000,
+    );
     text = extracted.value;
   }
 
