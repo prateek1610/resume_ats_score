@@ -1,0 +1,31 @@
+import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import type { Recommendation, ResumeAnalysis } from "@/lib/scoring";
+
+export const resumeReports = sqliteTable(
+  "resume_reports",
+  {
+    id: text("id").primaryKey(),
+    ownerEmail: text("owner_email").notNull(),
+    filename: text("filename").notNull(),
+    storageKey: text("storage_key"),
+    contentType: text("content_type").notNull(),
+    fileSize: integer("file_size").notNull(),
+    mode: text("mode", { enum: ["standalone", "job_match"] }).notNull(),
+    jobDescription: text("job_description"),
+    overallScore: integer("overall_score").notNull(),
+    keywordScore: integer("keyword_score").notNull(),
+    structureScore: integer("structure_score").notNull(),
+    impactScore: integer("impact_score").notNull(),
+    essentialsScore: integer("essentials_score").notNull(),
+    matchedKeywords: text("matched_keywords", { mode: "json" }).$type<string[]>().notNull(),
+    missingKeywords: text("missing_keywords", { mode: "json" }).$type<string[]>().notNull(),
+    strengths: text("strengths", { mode: "json" }).$type<string[]>().notNull(),
+    recommendations: text("recommendations", { mode: "json" }).$type<Recommendation[]>().notNull(),
+    sections: text("sections", { mode: "json" }).$type<ResumeAnalysis["sections"]>().notNull(),
+    stats: text("stats", { mode: "json" }).$type<ResumeAnalysis["stats"]>().notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("resume_reports_owner_created_idx").on(table.ownerEmail, table.createdAt),
+  ],
+);

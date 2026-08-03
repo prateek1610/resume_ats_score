@@ -1,0 +1,49 @@
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { chatGPTSignOutPath } from "@/app/chatgpt-auth";
+import { AnalysisView } from "@/components/analysis-view";
+import { requireAppUser } from "@/lib/app-auth";
+import { getReport } from "@/lib/reports";
+import type { ResumeAnalysis } from "@/lib/scoring";
+import { DeleteReportButton } from "./delete-report-button";
+
+export const dynamic = "force-dynamic";
+
+export default async function ReportPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const user = await requireAppUser(`/reports/${id}`);
+  const report = await getReport(id, user.email.toLowerCase());
+  if (!report) notFound();
+
+  const analysis: ResumeAnalysis = {
+    mode: report.mode,
+    overallScore: report.overallScore,
+    keywordScore: report.keywordScore,
+    structureScore: report.structureScore,
+    impactScore: report.impactScore,
+    essentialsScore: report.essentialsScore,
+    matchedKeywords: report.matchedKeywords,
+    missingKeywords: report.missingKeywords,
+    strengths: report.strengths,
+    recommendations: report.recommendations,
+    sections: report.sections,
+    stats: report.stats,
+  };
+
+  return (
+    <main className="app-shell">
+      <header className="app-header">
+        <Link className="app-brand" href="/"><span className="app-brand-mark">◎</span>ResumeLens</Link>
+        <div className="account-menu"><a href="/dashboard">Dashboard</a><a href={chatGPTSignOutPath("/")}>Sign out</a></div>
+      </header>
+      <div className="report-wrap">
+        <div className="report-toolbar">
+          <div><Link className="back-link" href="/dashboard">← All reports</Link><p className="eyebrow">Saved ATS report</p><h1>{report.filename}</h1><p>{report.mode === "job_match" ? "Job-description match" : "Standalone review"} · {report.createdAt.toLocaleDateString()}</p></div>
+          <div className="report-actions"><a href={`/api/resumes/${report.id}`}>Download resume</a><DeleteReportButton reportId={report.id} /></div>
+        </div>
+        <AnalysisView analysis={analysis} />
+        <p className="report-disclaimer">ResumeLens provides heuristic ATS guidance. Scores can differ across employers and do not guarantee interviews or hiring outcomes.</p>
+      </div>
+    </main>
+  );
+}
