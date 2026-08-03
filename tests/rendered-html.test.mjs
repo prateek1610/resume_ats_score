@@ -99,4 +99,6 @@ test("returns a complete authenticated sample analysis", async () => {
   assert.match(payload.analysis.details.targetRole, /Operations Analyst/i);
   assert.ok(payload.analysis.details.requirementEvidence.length > 0);
   assert.ok(payload.analysis.details.bulletInsights.length > 0);
+  assert.equal(typeof payload.analysis.details.roleFitScore, "number");
+  assert.ok(payload.analysis.details.mismatches.some((item) => item.requirement === "SQL"));
 });

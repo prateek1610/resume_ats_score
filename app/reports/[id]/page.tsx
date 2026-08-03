@@ -29,6 +29,9 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     sections: report.sections,
     details: report.analysisDetails ?? {
       targetRole: report.mode === "job_match" ? "Target role" : "General ATS readiness",
+      resumeProfile: "General professional experience",
+      roleFitScore: report.keywordScore,
+      roleFitVerdict: "Saved ATS review",
       fitLabel: "Saved ATS review",
       contextSummary: report.mode === "job_match"
         ? "This report predates contextual requirement mapping. Re-upload the resume to generate the deeper evidence review."
@@ -36,6 +39,8 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
       strongestEvidence: report.strengths[0] ?? "No strong evidence summary is available for this earlier report.",
       biggestRisk: report.recommendations[0]?.detail ?? "No critical risk was recorded.",
       requirementEvidence: [],
+      mismatches: [],
+      transferableStrengths: [],
       bulletInsights: [],
       riskFlags: [],
     },

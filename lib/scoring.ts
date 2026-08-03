@@ -21,10 +21,20 @@ export type SectionInsight = {
 
 export type RequirementEvidence = {
   requirement: string;
+  category: "responsibility" | "skill" | "tool" | "qualification";
+  importance: "required" | "preferred" | "supporting";
   status: "supported" | "partial" | "missing";
   score: number;
   evidence: string[];
   guidance: string;
+};
+
+export type RoleMismatch = {
+  requirement: string;
+  category: RequirementEvidence["category"] | "role";
+  impact: "critical" | "important" | "minor";
+  reason: string;
+  action: string;
 };
 
 export type BulletInsight = {
@@ -43,11 +53,16 @@ export type RiskFlag = {
 
 export type DeepAnalysis = {
   targetRole: string;
+  resumeProfile: string;
+  roleFitScore: number;
+  roleFitVerdict: string;
   fitLabel: string;
   contextSummary: string;
   strongestEvidence: string;
   biggestRisk: string;
   requirementEvidence: RequirementEvidence[];
+  mismatches: RoleMismatch[];
+  transferableStrengths: string[];
   bulletInsights: BulletInsight[];
   riskFlags: RiskFlag[];
 };
@@ -125,7 +140,43 @@ const REQUIREMENT_CONCEPTS = [
   { label: "Ticketing systems", aliases: ["ticketing", "tickets", "jira", "zendesk", "servicenow", "freshdesk"] },
   { label: "Sales & account growth", aliases: ["sales", "account management", "revenue", "pipeline", "client retention"] },
   { label: "Product management", aliases: ["product management", "product strategy", "roadmap", "user research", "product discovery"] },
-  { label: "Software development", aliases: ["software development", "javascript", "typescript", "react", "node.js", "python", "git"] },
+  { label: "Software engineering", aliases: ["software engineering", "software engineer", "software development", "application development"] },
+] as const;
+
+const ATOMIC_TOOLS = [
+  { label: "TypeScript", aliases: ["typescript"] },
+  { label: "JavaScript", aliases: ["javascript"] },
+  { label: "React", aliases: ["react", "react.js", "reactjs"] },
+  { label: "Node.js", aliases: ["node.js", "nodejs", "node js"] },
+  { label: "Python", aliases: ["python"] },
+  { label: "AWS", aliases: ["aws", "amazon web services"] },
+  { label: "Git", aliases: ["git", "github", "gitlab"] },
+  { label: "Salesforce", aliases: ["salesforce"] },
+  { label: "Tableau", aliases: ["tableau"] },
+  { label: "Figma", aliases: ["figma"] },
+] as const;
+
+type RequirementDefinition = {
+  label: string;
+  aliases: string[];
+  category: RequirementEvidence["category"];
+  importance: RequirementEvidence["importance"];
+};
+
+const TOOL_REQUIREMENTS = new Set(["Excel", "SQL", "Power BI", "Ticketing systems", "TypeScript", "JavaScript", "React", "Node.js", "Python", "AWS", "Git", "Salesforce", "Tableau", "Figma"]);
+
+const ROLE_DOMAINS = [
+  { label: "Operations", aliases: ["operations", "operational", "process", "workflow", "service delivery"] },
+  { label: "Customer support", aliases: ["customer service", "customer support", "service desk", "help desk", "tickets", "csat"] },
+  { label: "Data & analytics", aliases: ["analyst", "analytics", "data analysis", "sql", "power bi", "tableau", "reporting"] },
+  { label: "Software engineering", aliases: ["software engineer", "developer", "frontend", "backend", "javascript", "typescript", "react", "python"] },
+  { label: "Product", aliases: ["product manager", "product management", "roadmap", "product strategy", "user research"] },
+  { label: "Sales", aliases: ["sales", "account management", "business development", "revenue", "pipeline"] },
+  { label: "Marketing", aliases: ["marketing", "seo", "content strategy", "campaign", "brand"] },
+  { label: "Finance", aliases: ["finance", "financial", "accounting", "audit", "taxation", "bookkeeping"] },
+  { label: "Human resources", aliases: ["human resources", "hr", "recruitment", "talent acquisition", "employee relations"] },
+  { label: "Education", aliases: ["teacher", "teaching", "education", "curriculum", "classroom", "student"] },
+  { label: "Design", aliases: ["designer", "design", "figma", "ux", "ui", "visual"] },
 ] as const;
 
 const SECTION_DEFINITIONS = [
@@ -199,6 +250,8 @@ function extractTargetRole(jobDescription: string) {
     const match = compact.match(pattern)?.[1]?.trim();
     if (match) return match.replace(/\b\w/g, (letter) => letter.toUpperCase());
   }
+  const firstLine = jobDescription.split("\n").map(cleanLine).find((line) => line.length >= 3 && line.length <= 70);
+  if (firstLine && (firstLine.match(/[a-z]+/gi) ?? []).length <= 9 && !/[.!?]$/.test(firstLine)) return firstLine;
   return "Target role";
 }
 
@@ -209,42 +262,173 @@ function evidenceLines(resumeText: string) {
     .filter((line) => line.length >= 18 && line.length <= 260);
 }
 
-function analyzeRequirements(resumeText: string, jobDescription: string): RequirementEvidence[] {
+function stemToken(token: string) {
+  return token.toLowerCase().replace(/[^a-z0-9+#]/g, "").replace(/(?:ments?|ations?|ingly|edly|ing|ed|ies|s)$/i, "");
+}
+
+function meaningfulTokens(value: string) {
+  return [...new Set((value.match(/[a-z][a-z0-9+#-]{2,}/gi) ?? [])
+    .map(stemToken)
+    .filter((token) => token.length >= 3 && !STOP_WORDS.has(token)))];
+}
+
+function importanceFor(jobDescription: string, aliases: readonly string[]): RequirementEvidence["importance"] {
+  const lower = jobDescription.toLowerCase();
+  const index = Math.min(...aliases.map((alias) => lower.indexOf(alias)).filter((position) => position >= 0));
+  const context = Number.isFinite(index) ? lower.slice(Math.max(0, index - 90), index + 120) : lower;
+  if (/\b(?:must|required|mandatory|minimum|essential|need to)\b/.test(context)) return "required";
+  if (/\b(?:preferred|desirable|nice to have|bonus)\b/.test(context)) return "preferred";
+  return "supporting";
+}
+
+function categoryFor(label: string): RequirementEvidence["category"] {
+  if (TOOL_REQUIREMENTS.has(label)) return "tool";
+  if (/degree|years?|certif|licen[cs]e|qualification/i.test(label)) return "qualification";
+  if (/management|analysis|communication|leadership|service|support|development|engineering|reporting/i.test(label)) return "skill";
+  return "responsibility";
+}
+
+function requirementLabel(value: string) {
+  return value
+    .replace(/^[-•▪◦*\d.)\s]+/, "")
+    .replace(/^(?:responsibilities?(?: include)?|requirements?(?: include)?|you will|must|should|required to|responsible for|experience with|proficiency in|knowledge of)\s*:?[\s-]*/i, "")
+    .replace(/[.;:]$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractRequirementDefinitions(jobDescription: string): RequirementDefinition[] {
   if (!jobDescription.trim()) return [];
   const lowerJob = jobDescription.toLowerCase();
+  const definitions: RequirementDefinition[] = REQUIREMENT_CONCEPTS
+    .filter((concept) => concept.aliases.some((alias) => lowerJob.includes(alias)))
+    .map((concept) => ({
+      label: concept.label,
+      aliases: [...concept.aliases],
+      category: categoryFor(concept.label),
+      importance: importanceFor(jobDescription, concept.aliases),
+    }));
+  for (const tool of ATOMIC_TOOLS) {
+    if (tool.aliases.some((alias) => lowerJob.includes(alias)) && !definitions.some((definition) => definition.label === tool.label)) {
+      definitions.push({ label: tool.label, aliases: [...tool.aliases], category: "tool", importance: importanceFor(jobDescription, tool.aliases) });
+    }
+  }
+
+  const rawLines = jobDescription.split(/\n|(?<=[.!?])\s+/).map(cleanLine).filter(Boolean);
+  const candidates: Array<{ text: string; category: RequirementEvidence["category"] }> = [];
+  for (const line of rawLines) {
+    const qualificationMatches = line.match(/\b(?:\d+\+?\s+years?(?:\s+of)?\s+experience(?:\s+(?:in|with)\s+[a-z0-9 &+.#-]{2,45})?|(?:bachelor(?:'s)?|master(?:'s)?|graduate|postgraduate)\s+(?:degree|qualification)(?:\s+in\s+[a-z &-]{2,40})?|[a-z &-]{2,35}\s+certification)\b/gi) ?? [];
+    qualificationMatches.forEach((text) => candidates.push({ text: text.replace(/\s+(?:required|preferred|mandatory)$/i, ""), category: "qualification" }));
+
+    const isResponsibilityLine = /\b(?:responsibilit|you will|responsible for|duties|expected to|include|including)\b/i.test(line) || /^[-•▪◦*]/.test(line);
+    if (!isResponsibilityLine) continue;
+    const content = line.includes(":") ? line.slice(line.indexOf(":") + 1) : line.replace(/^.*?\b(?:include|including|responsible for|you will|expected to)\b/i, "");
+    content.split(/[,;]|\s+and\s+(?=[a-z]+ing\b)/i).forEach((part) => {
+      const text = requirementLabel(part);
+      const wordCount = (text.match(/[a-z0-9+#-]+/gi) ?? []).length;
+      if (wordCount >= 2 && wordCount <= 11 && /\b(?:ing|manage|lead|build|create|develop|deliver|support|analy|identify|present|improve|maintain|coordinate|resolve|design|review|mentor|deploy)/i.test(text)) {
+        candidates.push({ text, category: "responsibility" });
+      }
+    });
+  }
+
+  for (const candidate of candidates) {
+    const label = requirementLabel(candidate.text);
+    const labelTokens = meaningfulTokens(label);
+    if (labelTokens.length < 2) continue;
+    const duplicate = definitions.some((definition) => {
+      const existing = meaningfulTokens(`${definition.label} ${definition.aliases.join(" ")}`);
+      return labelTokens.filter((token) => existing.includes(token)).length / labelTokens.length >= 0.65;
+    });
+    if (!duplicate) definitions.push({
+      label: label.charAt(0).toUpperCase() + label.slice(1),
+      aliases: [label.toLowerCase()],
+      category: candidate.category,
+      importance: importanceFor(jobDescription, [label.toLowerCase()]),
+    });
+  }
+
+  const importanceOrder = { required: 0, supporting: 1, preferred: 2 } as const;
+  return definitions
+    .sort((a, b) => importanceOrder[a.importance] - importanceOrder[b.importance])
+    .slice(0, 14);
+}
+
+function analyzeRequirements(resumeText: string, jobDescription: string): RequirementEvidence[] {
+  const definitions = extractRequirementDefinitions(jobDescription);
   const lowerResume = resumeText.toLowerCase();
   const lines = evidenceLines(resumeText);
-  const concepts = REQUIREMENT_CONCEPTS
-    .filter((concept) => concept.aliases.some((alias) => lowerJob.includes(alias)))
-    .sort((a, b) => {
-      const firstA = Math.min(...a.aliases.map((alias) => lowerJob.indexOf(alias)).filter((index) => index >= 0));
-      const firstB = Math.min(...b.aliases.map((alias) => lowerJob.indexOf(alias)).filter((index) => index >= 0));
-      return firstA - firstB;
-    })
-    .slice(0, 10);
 
-  return concepts.map((concept) => {
-    const exactAliases = concept.aliases.filter((alias) => lowerResume.includes(alias));
-    const jdAliases = concept.aliases.filter((alias) => lowerJob.includes(alias));
-    const usefulTokens = [...new Set(jdAliases.flatMap((alias) => alias.split(/\s+/)).filter((word) => word.length >= 5 && !STOP_WORDS.has(word)))];
-    const partialTokens = usefulTokens.filter((token) => lowerResume.includes(token));
+  return definitions.map((definition) => {
+    const exactAliases = definition.aliases.filter((alias) => lowerResume.includes(alias));
+    const tokenVariants = [definition.label, ...definition.aliases].map(meaningfulTokens).filter((tokens) => tokens.length);
+    const scoredLines = lines.map((line) => {
+      const lineTokens = meaningfulTokens(line);
+      const coverage = Math.max(...tokenVariants.map((tokens) => tokens.filter((token) => lineTokens.includes(token)).length / tokens.length));
+      return { line, coverage };
+    }).filter((item) => item.coverage > 0).sort((a, b) => b.coverage - a.coverage);
     const exactLines = lines.filter((line) => exactAliases.some((alias) => includesPhrase(line, alias)));
-    const partialLines = lines.filter((line) => partialTokens.some((token) => includesPhrase(line, token)));
-    const matchedLines = (exactLines.length ? exactLines : partialLines).slice(0, 2);
-    const substantiveEvidence = exactLines.filter((line) => (line.match(/,/g) ?? []).length < 3);
-    const status: RequirementEvidence["status"] = substantiveEvidence.length
-      ? "supported"
-      : exactAliases.length || (partialTokens.length && matchedLines.length)
-        ? "partial"
-        : "missing";
-    const score = status === "supported" ? Math.min(100, 78 + substantiveEvidence.length * 10) : status === "partial" ? (exactAliases.length ? 55 : 42) : 12;
+    const matchedLines = [...new Set([...exactLines, ...scoredLines.filter((item) => item.coverage >= 0.34).map((item) => item.line)])].slice(0, 2);
+    const substantiveEvidence = matchedLines.filter((line) => (line.match(/,/g) ?? []).length < 3);
+    const bestCoverage = scoredLines[0]?.coverage ?? 0;
+    const supported = substantiveEvidence.length > 0 && (exactAliases.length > 0 || bestCoverage >= 0.67);
+    const partial = exactAliases.length > 0 || bestCoverage >= 0.34;
+    const status: RequirementEvidence["status"] = supported ? "supported" : partial ? "partial" : "missing";
+    const score = status === "supported" ? clamp(78 + Math.min(substantiveEvidence.length * 8, 16) + bestCoverage * 6) : status === "partial" ? clamp(38 + bestCoverage * 28 + (exactAliases.length ? 8 : 0)) : 8;
+    const subject = definition.label.toLowerCase();
     const guidance = status === "supported"
-      ? `Keep this evidence prominent and connect it to a measurable ${concept.label.toLowerCase()} outcome.`
+      ? `Keep this evidence prominent and connect it to a measurable ${subject} outcome.`
       : status === "partial"
-        ? `The resume hints at this capability, but does not prove it directly. Name the ${concept.label.toLowerCase()} work, tool or outcome you genuinely delivered.`
-        : `No credible evidence was found. If you have this experience, add one achievement showing how you used ${concept.label.toLowerCase()} and what changed.`;
-    return { requirement: concept.label, status, score, evidence: matchedLines, guidance };
+        ? `The resume suggests ${subject}, but does not prove the full requirement. Add a specific example, scope and result only if it is true.`
+        : definition.category === "qualification"
+          ? `This qualification is not visible. Add it only if you hold it; otherwise treat it as a genuine eligibility gap.`
+          : `No credible evidence was found. If you have this experience, add one achievement showing how you used ${subject} and what changed.`;
+    return { requirement: definition.label, category: definition.category, importance: definition.importance, status, score, evidence: matchedLines, guidance };
   });
+}
+
+function detectDomain(text: string) {
+  const lower = text.toLowerCase();
+  return ROLE_DOMAINS.map((domain) => ({ ...domain, score: domain.aliases.reduce((total, alias) => total + (lower.includes(alias) ? (alias.includes(" ") ? 3 : 1) : 0), 0) }))
+    .sort((a, b) => b.score - a.score)[0];
+}
+
+function buildRoleComparison(resumeText: string, jobDescription: string, targetRole: string, requirements: RequirementEvidence[]) {
+  const roleDomain = detectDomain(targetRole);
+  const targetDomain = roleDomain?.score ? roleDomain : detectDomain(jobDescription);
+  const resumeDomain = detectDomain(resumeText);
+  const resumeProfile = resumeDomain?.score ? resumeDomain.label : "General professional experience";
+  const targetEvidenceInResume = targetDomain?.aliases.reduce((total, alias) => total + (resumeText.toLowerCase().includes(alias) ? 1 : 0), 0) ?? 0;
+  const domainAligned = Boolean(targetDomain?.score && resumeDomain?.score && targetDomain.label === resumeDomain.label);
+  const domainScore = !targetDomain?.score || !resumeDomain?.score ? 55 : domainAligned ? 100 : targetEvidenceInResume ? 72 : 20;
+  const weighted = requirements.reduce((totals, requirement) => {
+    const weight = requirement.importance === "required" ? 1.5 : requirement.importance === "preferred" ? 0.7 : 1;
+    return { points: totals.points + requirement.score * weight, weight: totals.weight + weight };
+  }, { points: 0, weight: 0 });
+  const evidenceScore = weighted.weight ? weighted.points / weighted.weight : 40;
+  const roleFitScore = clamp(evidenceScore * 0.82 + domainScore * 0.18);
+  const roleFitVerdict = roleFitScore >= 78 ? "Well aligned" : roleFitScore >= 60 ? "Plausible match with gaps" : roleFitScore >= 42 ? "Stretch role" : "Low current match";
+
+  const mismatches: RoleMismatch[] = requirements
+    .filter((item) => item.status !== "supported")
+    .map((item) => ({
+      requirement: item.requirement,
+      category: item.category,
+      impact: item.status === "missing" && item.importance === "required" ? "critical" : item.status === "missing" ? "important" : "minor",
+      reason: item.status === "missing" ? "No direct evidence appears in the resume." : "Related language appears, but the resume does not demonstrate the full requirement.",
+      action: item.guidance,
+    }));
+  if (targetDomain?.score && resumeDomain?.score && domainScore < 40) mismatches.unshift({
+    requirement: `${targetDomain.label} role background`,
+    category: "role",
+    impact: "critical",
+    reason: `The job targets ${targetDomain.label}, while the resume is currently strongest in ${resumeProfile}.`,
+    action: `Lead with transferable achievements relevant to ${targetDomain.label}. If you lack real exposure, treat this as a role-level gap rather than adding unsupported keywords.`,
+  });
+  const impactOrder = { critical: 0, important: 1, minor: 2 } as const;
+  mismatches.sort((a, b) => impactOrder[a.impact] - impactOrder[b.impact]);
+  const transferableStrengths = requirements.filter((item) => item.status === "supported" || item.status === "partial").slice(0, 5).map((item) => item.requirement);
+  return { resumeProfile, roleFitScore, roleFitVerdict, mismatches: mismatches.slice(0, 10), transferableStrengths };
 }
 
 function analyzeBullets(resumeText: string): BulletInsight[] {
@@ -326,12 +510,11 @@ export function analyzeResume(resumeText: string, jobDescription = ""): ResumeAn
     : [];
   const keywordCoverage = matchedKeywords.length / Math.max(targetKeywords.length, 1);
   const requirementEvidence = analyzeRequirements(cleanResume, jobDescription);
-  const semanticCoverage = requirementEvidence.length
-    ? requirementEvidence.reduce((total, item) => total + item.score, 0) / requirementEvidence.length
-    : keywordCoverage * 100;
+  const targetRole = extractTargetRole(jobDescription);
+  const roleComparison = buildRoleComparison(cleanResume, jobDescription, targetRole, requirementEvidence);
 
   const keywordScore = mode === "job_match"
-    ? clamp(semanticCoverage * 0.7 + keywordCoverage * 100 * 0.3)
+    ? clamp(roleComparison.roleFitScore * 0.8 + keywordCoverage * 100 * 0.2)
     : clamp(35 + matchedKeywords.length * 7 + (sectionBlocks.has("Skills") ? 20 : 0));
 
   let structurePoints = 0;
@@ -435,13 +618,14 @@ export function analyzeResume(resumeText: string, jobDescription = ""): ResumeAn
   ];
 
   const recommendations: Recommendation[] = [];
-  if (mode === "job_match" && missingKeywords.length) {
+  const priorityRequirementGaps = requirementEvidence.filter((item) => item.status === "missing").slice(0, 6);
+  if (mode === "job_match" && (priorityRequirementGaps.length || missingKeywords.length)) {
     recommendations.push({
       id: "missing-keywords", category: "keywords", priority: keywordScore < 55 ? "high" : "medium",
       title: "Close the highest-value keyword gaps",
-      detail: `Build truthful evidence around: ${missingKeywords.slice(0, 6).join(", ")}. Do not simply paste a keyword list.`,
+      detail: `Build truthful evidence around: ${(priorityRequirementGaps.length ? priorityRequirementGaps.map((item) => item.requirement) : missingKeywords.slice(0, 6)).join(", ")}. Do not simply paste a keyword list.`,
       why: "Most ATS tools rank resumes partly by role-specific language and context.",
-      example: `Instead of “Used tools for reporting,” write “Built weekly ${missingKeywords[0] ?? "role-specific"} reports that improved decision speed.”`,
+      example: `Instead of “Used relevant tools,” show how you used ${priorityRequirementGaps[0]?.requirement ?? missingKeywords[0] ?? "a role-specific skill"}, at what scale, and with what result.`,
     });
   }
   const missingSections = ["Summary", "Experience", "Education", "Skills"].filter((name) => !sectionBlocks.has(name));
@@ -546,18 +730,19 @@ export function analyzeResume(resumeText: string, jobDescription = ""): ResumeAn
   const missingRequirementEvidence = requirementEvidence.filter((item) => item.status === "missing");
   const strongestRequirement = [...supportedRequirements].sort((a, b) => b.score - a.score)[0];
   const strongestBullet = [...bulletInsights].sort((a, b) => b.score - a.score)[0];
-  const targetRole = extractTargetRole(jobDescription);
   const fitLabel = mode === "standalone"
     ? overallScore >= 75 ? "Strong ATS foundation" : overallScore >= 55 ? "Developing ATS foundation" : "Foundational rewrite needed"
-    : keywordScore >= 75 ? "Strong contextual fit" : keywordScore >= 55 ? "Moderate contextual fit" : "Limited evidence for this role";
+    : roleComparison.roleFitVerdict;
   const contextSummary = mode === "job_match"
     ? `${supportedRequirements.length} of ${requirementEvidence.length || matchedKeywords.length} priority requirements have direct evidence${partialRequirements.length ? `, with ${partialRequirements.length} more only partially demonstrated` : ""}. ${missingRequirementEvidence.length ? `The main application risk is ${missingRequirementEvidence.slice(0, 2).map((item) => item.requirement).join(" and ")}.` : "The resume covers the core role language; improve proof and specificity next."}`
     : `This review measures ATS readability and evidence quality without a job description. Add a target job description for requirement-by-requirement role matching.`;
   const strongestEvidence = strongestRequirement?.evidence[0]
     ?? strongestBullet?.text
     ?? strengths[0];
-  const biggestRisk = riskFlags[0]?.detail
-    ?? (mode === "job_match" && missingKeywords.length ? `Role language is missing around ${missingKeywords.slice(0, 3).join(", ")}.` : "No critical ATS risk was detected; continue tailoring for each application.");
+  const biggestRisk = mode === "job_match" && roleComparison.mismatches.length
+    ? roleComparison.mismatches[0].reason
+    : riskFlags[0]?.detail
+      ?? (mode === "job_match" && missingKeywords.length ? `Role language is missing around ${missingKeywords.slice(0, 3).join(", ")}.` : "No critical ATS risk was detected; continue tailoring for each application.");
 
   return {
     mode,
@@ -573,11 +758,16 @@ export function analyzeResume(resumeText: string, jobDescription = ""): ResumeAn
     sections,
     details: {
       targetRole,
+      resumeProfile: roleComparison.resumeProfile,
+      roleFitScore: mode === "job_match" ? roleComparison.roleFitScore : overallScore,
+      roleFitVerdict: mode === "job_match" ? roleComparison.roleFitVerdict : fitLabel,
       fitLabel,
       contextSummary,
       strongestEvidence,
       biggestRisk,
       requirementEvidence,
+      mismatches: mode === "job_match" ? roleComparison.mismatches : [],
+      transferableStrengths: mode === "job_match" ? roleComparison.transferableStrengths : [],
       bulletInsights,
       riskFlags,
     },

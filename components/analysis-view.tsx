@@ -44,11 +44,16 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
   const verdict = scoreVerdict(analysis.overallScore);
   const details = analysis.details ?? {
     targetRole: analysis.mode === "job_match" ? "Target role" : "General ATS readiness",
+    resumeProfile: "General professional experience",
+    roleFitScore: analysis.keywordScore,
+    roleFitVerdict: "Saved ATS review",
     fitLabel: "ATS review",
     contextSummary: "Upload this resume again to generate the newest contextual analysis.",
     strongestEvidence: analysis.strengths[0] ?? "No strong evidence summary is available.",
     biggestRisk: analysis.recommendations[0]?.detail ?? "No critical risk was detected.",
     requirementEvidence: [],
+    mismatches: [],
+    transferableStrengths: [],
     bulletInsights: [],
     riskFlags: [],
   };
@@ -57,6 +62,17 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
   const supportedCount = details.requirementEvidence.filter((item) => item.status === "supported").length;
   const partialCount = details.requirementEvidence.filter((item) => item.status === "partial").length;
   const missingCount = details.requirementEvidence.filter((item) => item.status === "missing").length;
+  const roleFitScore = details.roleFitScore ?? analysis.keywordScore;
+  const resumeProfile = details.resumeProfile ?? "General professional experience";
+  const roleFitVerdict = details.roleFitVerdict ?? details.fitLabel;
+  const mismatches = details.mismatches ?? details.requirementEvidence.filter((item) => item.status !== "supported").map((item) => ({
+    requirement: item.requirement,
+    category: item.category ?? "skill" as const,
+    impact: item.status === "missing" ? "important" as const : "minor" as const,
+    reason: item.status === "missing" ? "No direct evidence appears in the resume." : "Only partial evidence appears in the resume.",
+    action: item.guidance,
+  }));
+  const transferableStrengths = details.transferableStrengths ?? details.requirementEvidence.filter((item) => item.status !== "missing").slice(0, 5).map((item) => item.requirement);
   const diagnostics = [
     [analysis.stats.wordCount, "Words"],
     [analysis.stats.bulletCount, "Bullets"],
@@ -126,17 +142,33 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
       {analysis.mode === "job_match" && (
         <section className="report-chapter" id="role-fit">
           <ChapterHeading number="02" eyebrow="Role fit" title="Job requirements versus your evidence" copy="See exactly what is proved, only mentioned, or missing before you apply." />
+          <section className="role-fit-verdict" aria-label={`Role relevance ${roleFitScore} out of 100`}>
+            <div className="role-fit-score"><strong>{roleFitScore}</strong><span>/100</span><small>Role relevance</small></div>
+            <div className="role-fit-copy"><p className="eyebrow">Match verdict</p><h3>{roleFitVerdict}</h3><p>Your resume is strongest in <strong>{resumeProfile}</strong>, compared with the target role <strong>{details.targetRole}</strong>.</p></div>
+            <div className="transferable-box"><span>Transferable evidence</span>{transferableStrengths.length ? <ul>{transferableStrengths.map((strength) => <li key={strength}>{strength}</li>)}</ul> : <p>No clear transferable role evidence was detected.</p>}</div>
+          </section>
           <div className="fit-summary" aria-label="Requirement summary">
             <span className="fit-supported"><strong>{supportedCount}</strong> Supported</span>
             <span className="fit-partial"><strong>{partialCount}</strong> Partial</span>
             <span className="fit-missing"><strong>{missingCount}</strong> Missing</span>
           </div>
 
+          <section className="mismatch-panel">
+            <div className="subsection-heading"><div><p className="eyebrow">Mismatch report</p><h3>What does not match the job</h3></div><span>{mismatches.length} gaps found</span></div>
+            {mismatches.length ? <div className="mismatch-list">{mismatches.map((item, index) => (
+              <article className={`mismatch-item mismatch-${item.impact}`} key={`${item.requirement}-${index}`}>
+                <div className="mismatch-number">{String(index + 1).padStart(2, "0")}</div>
+                <div className="mismatch-main"><div><span>{item.impact}</span><small>{item.category}</small></div><h4>{item.requirement}</h4><p>{item.reason}</p></div>
+                <div className="mismatch-action"><strong>What to do</strong><p>{item.action}</p></div>
+              </article>
+            ))}</div> : <div className="match-complete"><span>✓</span><p>No material requirement mismatch was found. Keep the strongest evidence near the top of the resume.</p></div>}
+          </section>
+
           {details.requirementEvidence.length > 0 ? (
             <div className="requirement-list">
               {details.requirementEvidence.map((item) => (
                 <article className={`requirement-card requirement-${item.status}`} key={item.requirement}>
-                  <header><div><span>{item.status}</span><h3>{item.requirement}</h3></div><strong>{item.score}<small>/100</small></strong></header>
+                  <header><div><span>{item.status}</span><small>{item.importance ?? "supporting"} · {item.category ?? "skill"}</small><h3>{item.requirement}</h3></div><strong>{item.score}<small>/100</small></strong></header>
                   <div className="requirement-body">
                     <div><b>{item.evidence.length ? "Evidence found" : "Evidence gap"}</b>{item.evidence.length ? item.evidence.map((evidence) => <q key={evidence}>{evidence}</q>) : <p>No direct proof was found in the resume.</p>}</div>
                     <div><b>Recommended change</b><p>{item.guidance}</p></div>

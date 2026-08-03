@@ -17,6 +17,10 @@ test("scores a resume against a job description and identifies gaps", () => {
   assert.ok(report.details.requirementEvidence.some((item) => item.requirement === "Excel" && item.status === "supported" && item.evidence.length > 0));
   assert.ok(report.details.requirementEvidence.some((item) => item.requirement === "SQL" && item.status === "missing"));
   assert.ok(report.details.requirementEvidence.some((item) => item.requirement === "Power BI" && item.status === "missing"));
+  assert.ok(report.details.roleFitScore >= 0 && report.details.roleFitScore <= 100);
+  assert.match(report.details.roleFitVerdict, /match|aligned|stretch/i);
+  assert.ok(report.details.mismatches.some((item) => item.requirement === "SQL"));
+  assert.ok(report.details.requirementEvidence.some((item) => item.requirement === "Analyzing support metrics" && item.category === "responsibility"));
   assert.ok(report.details.contextSummary.includes("priority requirements"));
   assert.ok(report.details.bulletInsights.length >= 4);
   assert.ok(report.details.bulletInsights.some((item) => item.score >= 80 && item.signals.includes("Quantified")));
@@ -52,4 +56,35 @@ test("detects weak language, first-person writing, and dense bullets", () => {
   assert.ok(report.details.bulletInsights[0].score < 60);
   assert.match(report.details.bulletInsights[0].guidance, /Rewrite as/i);
   assert.ok(report.details.riskFlags.some((item) => item.title === "Passive positioning"));
+});
+
+test("detects a genuine role mismatch and lists unsupported job requirements", () => {
+  const teachingResume = `Arpita Bhatt
+arpita@example.com | +91 9876543210
+
+SUMMARY
+Primary school teacher with two years of experience in classroom management and curriculum planning.
+
+EXPERIENCE
+Teacher, City School | 2024–Present
+• Taught English to 90 students across three classes.
+• Designed lesson plans and improved student participation by 20%.
+
+EDUCATION
+Master of Commerce, B.Ed
+
+SKILLS
+Teaching, communication, classroom management, curriculum planning`;
+  const softwareJob = `Senior Software Engineer
+We require 5+ years of experience building production web applications. Must have TypeScript, React, Node.js, SQL and AWS experience. Responsibilities include designing scalable APIs, reviewing code, mentoring engineers, and deploying cloud services. Bachelor's degree in Computer Science required.`;
+
+  const report = analyzeResume(teachingResume, softwareJob);
+  assert.match(report.details.targetRole, /Senior Software Engineer/i);
+  assert.equal(report.details.resumeProfile, "Education");
+  assert.ok(report.details.roleFitScore < 30);
+  assert.equal(report.details.roleFitVerdict, "Low current match");
+  assert.ok(report.details.mismatches.some((item) => item.category === "role" && item.impact === "critical"));
+  for (const requirement of ["TypeScript", "React", "Node.js", "AWS", "Designing scalable APIs", "Reviewing code", "Bachelor's degree in Computer Science"]) {
+    assert.ok(report.details.requirementEvidence.some((item) => item.requirement === requirement && item.status === "missing"), requirement);
+  }
 });
