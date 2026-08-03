@@ -63,7 +63,14 @@ export async function extractResumeText(file: File) {
     await (pdf as unknown as { destroy(): Promise<void> }).destroy();
   } else if (extension === "docx") {
     const mammoth = await import("mammoth");
-    const extracted = await withTimeout(mammoth.extractRawText({ arrayBuffer: data }), 8_000);
+    // The server bundle resolves Mammoth's Node entrypoint, whose unzip layer
+    // expects the binary under `buffer` (the browser entrypoint uses
+    // `arrayBuffer`). An ArrayBuffer is accepted by JSZip at runtime, so keep
+    // the bytes zero-copy and expose them under the key used by this bundle.
+    const extracted = await withTimeout(
+      mammoth.extractRawText({ buffer: data as unknown as Buffer }),
+      8_000,
+    );
     text = extracted.value;
   }
 
