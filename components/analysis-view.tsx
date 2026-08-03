@@ -16,7 +16,7 @@ function scoreVerdict(score: number) {
   if (score >= 85) return { title: "Interview-ready foundation", copy: "Your resume has strong ATS fundamentals. Focus on the smaller refinements below." };
   if (score >= 70) return { title: "Competitive with clear upside", copy: "The core is working. A few targeted changes can materially improve recruiter confidence." };
   if (score >= 55) return { title: "Promising, but not yet sharp", copy: "Important evidence is present, but structure and impact need focused improvement." };
-  return { title: "Needs a focused rewrite", copy: "The report found foundational gaps that may prevent your strongest experience from being seen." };
+  return { title: "Needs a focused rewrite", copy: "Foundational gaps may prevent your strongest experience from being seen." };
 }
 
 function normalizeSection(section: Partial<SectionInsight> & { name: string; present: boolean }): SectionInsight {
@@ -31,6 +31,15 @@ function normalizeSection(section: Partial<SectionInsight> & { name: string; pre
   };
 }
 
+function ChapterHeading({ number, eyebrow, title, copy }: { number: string; eyebrow: string; title: string; copy: string }) {
+  return (
+    <header className="chapter-heading">
+      <span>{number}</span>
+      <div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2><p>{copy}</p></div>
+    </header>
+  );
+}
+
 export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
   const verdict = scoreVerdict(analysis.overallScore);
   const details = analysis.details ?? {
@@ -43,9 +52,11 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
     bulletInsights: [],
     riskFlags: [],
   };
-  const highPriority = analysis.recommendations.filter((item) => item.priority === "high").length;
-  const strongSections = analysis.sections.filter((section) => section.status === "strong").length;
   const sections = analysis.sections.map(normalizeSection);
+  const highPriority = analysis.recommendations.filter((item) => item.priority === "high").length;
+  const supportedCount = details.requirementEvidence.filter((item) => item.status === "supported").length;
+  const partialCount = details.requirementEvidence.filter((item) => item.status === "partial").length;
+  const missingCount = details.requirementEvidence.filter((item) => item.status === "missing").length;
   const diagnostics = [
     [analysis.stats.wordCount, "Words"],
     [analysis.stats.bulletCount, "Bullets"],
@@ -56,218 +67,150 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
   ];
 
   return (
-    <div className={`analysis-view${compact ? " analysis-view-compact" : ""}`}>
-      <section className="analysis-score-panel">
-        <div
-          className="analysis-score-ring"
-          style={{ "--score": analysis.overallScore } as React.CSSProperties}
-          aria-label={`ATS score ${analysis.overallScore} out of 100`}
-        >
-          <span>{analysis.overallScore}</span>
-          <small>/100</small>
+    <div className={`analysis-view analysis-view-v2${compact ? " analysis-view-compact" : ""}`}>
+      <section className="analysis-score-panel analysis-hero">
+        <div className="analysis-score-ring" style={{ "--score": analysis.overallScore } as React.CSSProperties} aria-label={`ATS score ${analysis.overallScore} out of 100`}>
+          <span>{analysis.overallScore}</span><small>/100</small>
         </div>
         <div className="analysis-score-copy">
-          <p className="eyebrow">Resume readiness</p>
+          <p className="eyebrow">Overall resume readiness</p>
           <h2>{verdict.title}</h2>
-          <p>{verdict.copy} {analysis.mode === "job_match" ? "This review includes the supplied job description." : "This is a standalone ATS-readiness review."}</p>
+          <p>{verdict.copy} {analysis.mode === "job_match" ? `This review is tailored for ${details.targetRole}.` : "Add a job description for role-specific evidence matching."}</p>
           <div className="analysis-kpis" aria-label="Report highlights">
-            <span><strong>{analysis.strengths.length}</strong> positive signals</span>
+            <span><strong>{analysis.strengths.length}</strong> strengths</span>
             <span><strong>{highPriority}</strong> priority fixes</span>
-            <span><strong>{strongSections}</strong> strong sections</span>
+            {analysis.mode === "job_match" && <span><strong>{supportedCount}</strong> requirements proved</span>}
           </div>
         </div>
       </section>
 
-      <section className="analysis-metrics" aria-label="Score breakdown">
-        {(Object.keys(metricLabels) as Array<keyof typeof metricLabels>).map((key) => (
-          <div className="analysis-metric" key={key}>
-            <span>{metricLabels[key]}</span>
-            <div><i style={{ width: `${analysis[key]}%` }} /></div>
-            <strong>{analysis[key]}</strong>
-          </div>
-        ))}
-      </section>
+      <nav className="report-jump-nav" aria-label="Analysis sections">
+        <a href="#overview"><span>01</span> Overview</a>
+        {analysis.mode === "job_match" && <a href="#role-fit"><span>02</span> Role fit</a>}
+        <a href="#resume-quality"><span>{analysis.mode === "job_match" ? "03" : "02"}</span> Resume quality</a>
+        <a href="#action-plan"><span>{analysis.mode === "job_match" ? "04" : "03"}</span> Action plan</a>
+      </nav>
 
-      <section className="report-section-heading">
-        <div><p className="eyebrow">Contextual role analysis</p><h2>What your resume actually proves</h2></div>
-        <p>Evidence-led role fit—not just keyword counting.</p>
-      </section>
+      <section className="report-chapter" id="overview">
+        <ChapterHeading number="01" eyebrow="Overview" title="Your report at a glance" copy="Start here: overall performance, strongest proof and the clearest risk." />
 
-      <section className="context-panel">
-        <div className="context-role">
-          <span>Target context</span>
-          <h3>{details.targetRole}</h3>
-          <strong>{details.fitLabel}</strong>
-          <p>{details.contextSummary}</p>
+        <div className="analysis-metrics" aria-label="Score breakdown">
+          {(Object.keys(metricLabels) as Array<keyof typeof metricLabels>).map((key) => (
+            <div className="analysis-metric" key={key}><span>{metricLabels[key]}</span><strong>{analysis[key]}</strong><div><i style={{ width: `${analysis[key]}%` }} /></div></div>
+          ))}
         </div>
-        <div className="context-evidence context-evidence-positive">
-          <span>Strongest proof</span>
-          <blockquote>“{details.strongestEvidence}”</blockquote>
-        </div>
-        <div className="context-evidence context-evidence-risk">
-          <span>Biggest application risk</span>
-          <p>{details.biggestRisk}</p>
-        </div>
-      </section>
 
-      {analysis.mode === "job_match" && details.requirementEvidence.length > 0 && (
-        <>
-          <section className="report-section-heading">
-            <div><p className="eyebrow">Requirement evidence map</p><h2>Job need → resume proof</h2></div>
-            <p>Each important requirement is classified by the evidence found in your resume.</p>
-          </section>
-          <section className="evidence-map" aria-label="Job requirement evidence">
-            {details.requirementEvidence.map((item) => (
-              <article className={`evidence-row evidence-${item.status}`} key={item.requirement}>
-                <div className="evidence-requirement">
-                  <span className="evidence-status">{item.status}</span>
-                  <h3>{item.requirement}</h3>
-                  <div aria-label={`${item.score} percent evidence strength`}><i style={{ width: `${item.score}%` }} /></div>
-                </div>
-                <div className="evidence-proof">
-                  <strong>{item.evidence.length ? "Resume evidence" : "Evidence not found"}</strong>
-                  {item.evidence.length
-                    ? item.evidence.map((evidence) => <q key={evidence}>{evidence}</q>)
-                    : <p>Your resume does not directly demonstrate this requirement.</p>}
-                </div>
-                <div className="evidence-guidance"><strong>How to strengthen it</strong><p>{item.guidance}</p></div>
-              </article>
-            ))}
-          </section>
-        </>
-      )}
-
-      {details.bulletInsights.length > 0 && (
-        <>
-          <section className="report-section-heading">
-            <div><p className="eyebrow">Bullet-level coaching</p><h2>Strengthen every achievement</h2></div>
-            <p>Individual bullets scored for ownership, specificity, proof, outcome and readability.</p>
-          </section>
-          <section className="bullet-coaching">
-            {details.bulletInsights.map((bullet, index) => (
-              <article className="bullet-card" key={`${bullet.text}-${index}`}>
-                <div className="bullet-score"><strong>{bullet.score}</strong><span>/100</span></div>
-                <div className="bullet-content">
-                  <p className="bullet-original">“{bullet.text}”</p>
-                  <div className="bullet-signals">
-                    {bullet.signals.map((signal) => <span key={signal}>✓ {signal}</span>)}
-                    {!bullet.signals.length && <span className="bullet-signal-risk">No strong impact signals detected</span>}
-                  </div>
-                  <p className="bullet-issue">{bullet.issue}</p>
-                  <div className="bullet-guidance"><strong>Coach’s note</strong><p>{bullet.guidance}</p></div>
-                </div>
-              </article>
-            ))}
-          </section>
-        </>
-      )}
-
-      {details.riskFlags.length > 0 && (
-        <section className="risk-strip" aria-label="Application risk flags">
-          <div><p className="eyebrow">Risk scan</p><h2>What may reduce shortlist confidence</h2></div>
-          <div className="risk-list">
-            {details.riskFlags.map((risk) => <article key={risk.title}><span className={`risk-dot risk-${risk.severity}`} /> <div><strong>{risk.title}</strong><p>{risk.detail}</p></div></article>)}
-          </div>
-        </section>
-      )}
-
-      <section className="report-section-heading">
-        <div><p className="eyebrow">Executive review</p><h2>What helps—and what holds you back</h2></div>
-        <p>A recruiter-style summary of the signals with the biggest effect on your resume.</p>
-      </section>
-
-      <div className="analysis-columns analysis-snapshot">
-        <section className="report-card report-card-positive">
-          <div className="report-card-title"><span className="card-icon card-icon-good">✓</span><div><p className="eyebrow">Good points</p><h3>What is already working</h3></div></div>
-          <ul className="strength-list">
-            {analysis.strengths.map((strength) => <li key={strength}>{strength}</li>)}
-          </ul>
-        </section>
-
-        <section className="report-card report-card-focus">
-          <div className="report-card-title"><span className="card-icon card-icon-warn">!</span><div><p className="eyebrow">Improvement points</p><h3>Fix these first</h3></div></div>
-          <div className="focus-list">
-            {analysis.recommendations.slice(0, 4).map((item, index) => (
-              <article key={item.id}>
-                <span>{String(index + 1).padStart(2, "0")}</span>
-                <div><strong>{item.title}</strong><p>{item.detail}</p></div>
-              </article>
-            ))}
-            {!analysis.recommendations.length && <p className="empty-copy">No critical issues were found.</p>}
-          </div>
-        </section>
-      </div>
-
-      <section className="report-section-heading">
-        <div><p className="eyebrow">Section intelligence</p><h2>How each part performs</h2></div>
-        <p>Recognition, quality and evidence checks for the sections recruiters scan first.</p>
-      </section>
-
-      <section className="section-audit" aria-label="Resume section audit">
-        {sections.map((section) => (
-          <article className={`section-audit-card section-${section.status}`} key={section.name}>
-            <div className="section-audit-top">
-              <div><span className="section-state">{section.status}</span><h3>{section.name}</h3></div>
-              <strong>{section.score}<small>/100</small></strong>
-            </div>
-            <p>{section.feedback}</p>
-            <ul>{section.checks.map((check) => <li key={check}>{check}</li>)}</ul>
+        <div className="overview-grid">
+          <article className="overview-context">
+            <p className="eyebrow">Target context</p><h3>{details.targetRole}</h3><span>{details.fitLabel}</span><p>{details.contextSummary}</p>
           </article>
-        ))}
-      </section>
+          <article className="overview-insight overview-positive"><span>✓</span><div><p className="eyebrow">Strongest proof</p><blockquote>“{details.strongestEvidence}”</blockquote></div></article>
+          <article className="overview-insight overview-risk"><span>!</span><div><p className="eyebrow">Biggest risk</p><p>{details.biggestRisk}</p></div></article>
+        </div>
 
-      <section className="report-section-heading">
-        <div><p className="eyebrow">Prioritized action plan</p><h2>Specific changes to make next</h2></div>
-        <p>Every recommendation explains why it matters and shows how to improve it.</p>
-      </section>
-
-      <section className="action-plan">
-        {analysis.recommendations.length ? analysis.recommendations.map((item, index) => (
-          <article className="action-card" key={item.id}>
-            <div className="action-index">{String(index + 1).padStart(2, "0")}</div>
-            <div className="action-main">
-              <div className="action-title-row"><span className={`priority priority-${item.priority}`}>{item.priority}</span><span className="action-category">{item.category}</span></div>
-              <h3>{item.title}</h3>
-              <p>{item.detail}</p>
-              {(item.why || item.example) && (
-                <div className="action-evidence">
-                  {item.why && <div><strong>Why it matters</strong><span>{item.why}</span></div>}
-                  {item.example && <div><strong>Try this</strong><span>{item.example}</span></div>}
-                </div>
-              )}
+        <div className="analysis-columns analysis-snapshot">
+          <section className="report-card report-card-positive">
+            <div className="report-card-title"><span className="card-icon card-icon-good">✓</span><div><p className="eyebrow">Good points</p><h3>What is already working</h3></div></div>
+            <ul className="strength-list">{analysis.strengths.map((strength) => <li key={strength}>{strength}</li>)}</ul>
+          </section>
+          <section className="report-card report-card-focus">
+            <div className="report-card-title"><span className="card-icon card-icon-warn">!</span><div><p className="eyebrow">Fix first</p><h3>Highest-impact improvements</h3></div></div>
+            <div className="focus-list">
+              {analysis.recommendations.slice(0, 4).map((item, index) => <article key={item.id}><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{item.title}</strong><p>{item.detail}</p></div></article>)}
+              {!analysis.recommendations.length && <p className="empty-copy">No critical issues were found.</p>}
             </div>
-          </article>
-        )) : <div className="report-card"><p className="empty-copy">No priority actions were found. Tailor the resume for each role before applying.</p></div>}
+          </section>
+        </div>
       </section>
 
       {analysis.mode === "job_match" && (
-        <>
-          <section className="report-section-heading">
-            <div><p className="eyebrow">Job alignment</p><h2>Keyword coverage</h2></div>
-            <p>Use missing terms only when your real experience supports them.</p>
-          </section>
-          <div className="analysis-columns keyword-columns">
-            <section className="report-card keyword-card keyword-card-good">
-              <div className="keyword-card-heading"><div><p className="eyebrow">Matched</p><h3>Evidence already found</h3></div><strong>{analysis.matchedKeywords.length}</strong></div>
-              <div className="keyword-list keyword-list-matched">
-                {analysis.matchedKeywords.length ? analysis.matchedKeywords.map((keyword) => <span key={keyword}>{keyword}</span>) : <p className="empty-copy">No strong keyword matches yet.</p>}
-              </div>
-            </section>
-            <section className="report-card keyword-card keyword-card-gap">
-              <div className="keyword-card-heading"><div><p className="eyebrow">Missing</p><h3>Potential relevance gaps</h3></div><strong>{analysis.missingKeywords.length}</strong></div>
-              <div className="keyword-list">
-                {analysis.missingKeywords.length ? analysis.missingKeywords.map((keyword) => <span key={keyword}>{keyword}</span>) : <p className="empty-copy">No major keyword gaps found.</p>}
-              </div>
-            </section>
+        <section className="report-chapter" id="role-fit">
+          <ChapterHeading number="02" eyebrow="Role fit" title="Job requirements versus your evidence" copy="See exactly what is proved, only mentioned, or missing before you apply." />
+          <div className="fit-summary" aria-label="Requirement summary">
+            <span className="fit-supported"><strong>{supportedCount}</strong> Supported</span>
+            <span className="fit-partial"><strong>{partialCount}</strong> Partial</span>
+            <span className="fit-missing"><strong>{missingCount}</strong> Missing</span>
           </div>
-        </>
+
+          {details.requirementEvidence.length > 0 ? (
+            <div className="requirement-list">
+              {details.requirementEvidence.map((item) => (
+                <article className={`requirement-card requirement-${item.status}`} key={item.requirement}>
+                  <header><div><span>{item.status}</span><h3>{item.requirement}</h3></div><strong>{item.score}<small>/100</small></strong></header>
+                  <div className="requirement-body">
+                    <div><b>{item.evidence.length ? "Evidence found" : "Evidence gap"}</b>{item.evidence.length ? item.evidence.map((evidence) => <q key={evidence}>{evidence}</q>) : <p>No direct proof was found in the resume.</p>}</div>
+                    <div><b>Recommended change</b><p>{item.guidance}</p></div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : <div className="report-card"><p className="empty-copy">Re-upload this resume to generate requirement-level evidence.</p></div>}
+
+          <details className="keyword-drawer">
+            <summary>View detailed keyword coverage <span>{analysis.matchedKeywords.length} matched · {analysis.missingKeywords.length} gaps</span></summary>
+            <div className="analysis-columns keyword-columns">
+              <section><h3>Matched language</h3><div className="keyword-list keyword-list-matched">{analysis.matchedKeywords.length ? analysis.matchedKeywords.map((keyword) => <span key={keyword}>{keyword}</span>) : <p className="empty-copy">No strong matches yet.</p>}</div></section>
+              <section><h3>Potential gaps</h3><div className="keyword-list">{analysis.missingKeywords.length ? analysis.missingKeywords.map((keyword) => <span key={keyword}>{keyword}</span>) : <p className="empty-copy">No major gaps found.</p>}</div></section>
+            </div>
+          </details>
+        </section>
       )}
 
-      <section className="diagnostics-card">
-        <div><p className="eyebrow">Resume diagnostics</p><h2>The details behind your score</h2></div>
-        <div className="diagnostics-grid">
-          {diagnostics.map(([value, label]) => <span key={label}><strong>{value}</strong>{label}</span>)}
-        </div>
+      <section className="report-chapter" id="resume-quality">
+        <ChapterHeading number={analysis.mode === "job_match" ? "03" : "02"} eyebrow="Resume quality" title="Structure and writing quality" copy="Review section health first, then open only the bullets that need your attention." />
+
+        <section className="section-audit section-audit-v2" aria-label="Resume section audit">
+          {sections.map((section) => (
+            <article className={`section-audit-card section-${section.status}`} key={section.name}>
+              <div className="section-audit-top"><div><span className="section-state">{section.status}</span><h3>{section.name}</h3></div><strong>{section.score}<small>/100</small></strong></div>
+              <p>{section.feedback}</p><ul>{section.checks.map((check) => <li key={check}>{check}</li>)}</ul>
+            </article>
+          ))}
+        </section>
+
+        <section className="diagnostics-card diagnostics-card-v2">
+          <div><p className="eyebrow">Resume diagnostics</p><h2>Writing signals</h2></div>
+          <div className="diagnostics-grid">{diagnostics.map(([value, label]) => <span key={label}><strong>{value}</strong>{label}</span>)}</div>
+        </section>
+
+        {details.bulletInsights.length > 0 && (
+          <div className="quality-block">
+            <div className="subsection-heading"><div><p className="eyebrow">Bullet-level coaching</p><h3>Open a bullet to see the coaching</h3></div><span>{details.bulletInsights.length} bullets reviewed</span></div>
+            <div className="bullet-review-list">
+              {details.bulletInsights.map((bullet, index) => (
+                <details className="bullet-review" key={`${bullet.text}-${index}`} open={index === 0}>
+                  <summary><span className={`bullet-score-pill ${bullet.score >= 75 ? "score-good" : bullet.score >= 50 ? "score-mid" : "score-low"}`}>{bullet.score}</span><p>“{bullet.text}”</p><i aria-hidden="true">⌄</i></summary>
+                  <div className="bullet-review-body">
+                    <div className="bullet-signals">{bullet.signals.map((signal) => <span key={signal}>✓ {signal}</span>)}{!bullet.signals.length && <span className="bullet-signal-risk">No strong impact signals detected</span>}</div>
+                    <p className="bullet-issue">{bullet.issue}</p>
+                    <div className="bullet-guidance"><strong>Coach’s note</strong><p>{bullet.guidance}</p></div>
+                  </div>
+                </details>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {details.riskFlags.length > 0 && (
+          <div className="quality-block risk-block">
+            <div className="subsection-heading"><div><p className="eyebrow">Risk scan</p><h3>Shortlist confidence risks</h3></div></div>
+            <div className="risk-list">{details.riskFlags.map((risk) => <article key={risk.title}><span className={`risk-dot risk-${risk.severity}`} /><div><strong>{risk.title}</strong><p>{risk.detail}</p></div></article>)}</div>
+          </div>
+        )}
+      </section>
+
+      <section className="report-chapter" id="action-plan">
+        <ChapterHeading number={analysis.mode === "job_match" ? "04" : "03"} eyebrow="Action plan" title="Make these changes next" copy="Work from top to bottom—the highest-impact fixes are shown first." />
+        <section className="action-plan">
+          {analysis.recommendations.length ? analysis.recommendations.map((item, index) => (
+            <article className="action-card" key={item.id}>
+              <div className="action-index">{String(index + 1).padStart(2, "0")}</div>
+              <div className="action-main"><div className="action-title-row"><span className={`priority priority-${item.priority}`}>{item.priority}</span><span className="action-category">{item.category}</span></div><h3>{item.title}</h3><p>{item.detail}</p>
+                {(item.why || item.example) && <div className="action-evidence">{item.why && <div><strong>Why it matters</strong><span>{item.why}</span></div>}{item.example && <div><strong>Try this</strong><span>{item.example}</span></div>}</div>}
+              </div>
+            </article>
+          )) : <div className="report-card"><p className="empty-copy">No priority actions were found. Tailor the resume for each role before applying.</p></div>}
+        </section>
       </section>
     </div>
   );
