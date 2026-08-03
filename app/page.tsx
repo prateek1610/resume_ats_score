@@ -1,4 +1,5 @@
-import { chatGPTSignInPath, getChatGPTUser } from "./chatgpt-auth";
+import { getChatGPTUser } from "./chatgpt-auth";
+import { resumeLensLoginPath, resumeLensSignupPath } from "@/lib/auth-paths";
 
 export const dynamic = "force-dynamic";
 
@@ -66,10 +67,11 @@ export default async function Home() {
   const user = await getChatGPTUser();
   const dashboardHref = user
     ? "/dashboard"
-    : chatGPTSignInPath("/dashboard");
+    : resumeLensLoginPath("/dashboard");
   const sampleHref = user
     ? "/dashboard?sample=1"
-    : chatGPTSignInPath("/dashboard?sample=1");
+    : resumeLensLoginPath("/dashboard?sample=1");
+  const signupHref = resumeLensSignupPath("/dashboard");
 
   return (
     <main>
@@ -82,9 +84,9 @@ export default async function Home() {
           <a href="#features">Features</a>
           <a href="#privacy">Privacy</a>
         </nav>
-        <a className="sign-in-link" href={dashboardHref}>
-          {user ? "Open dashboard" : "Sign in"}
-        </a>
+        {user ? <a className="sign-in-link" href={dashboardHref}>Open dashboard</a> : (
+          <div className="public-auth-actions"><a className="sign-in-link" href={dashboardHref}>Sign in</a><a className="header-signup" href={signupHref}>Create account</a></div>
+        )}
       </header>
 
       <section className="hero" id="top">

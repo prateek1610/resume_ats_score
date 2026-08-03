@@ -45,7 +45,38 @@ test("renders the ResumeLens landing journey", async () => {
   assert.equal(response.status, 200);
   assert.match(html, /Know what recruiters/);
   assert.match(html, /Upload resume/);
-  assert.match(html, /signin-with-chatgpt/);
+  assert.match(html, /\/login\?return_to=%2Fdashboard/);
+  assert.match(html, /Create account/);
+});
+
+test("renders a complete and safe login journey", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("login", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const response = await worker.fetch(
+    new Request("http://localhost/login?return_to=%2Fdashboard", { headers: { accept: "text/html" } }),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /Sign in to continue/);
+  assert.match(html, /Continue with ChatGPT/);
+  assert.match(html, /signin-with-chatgpt\?return_to=%2Fdashboard/);
+  assert.match(html, /Create free account/);
+});
+
+test("protected dashboard redirects through the ResumeLens login screen", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("protected", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const response = await worker.fetch(
+    new Request("http://localhost/dashboard", { redirect: "manual", headers: { accept: "text/html" } }),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.ok([302, 303, 307, 308].includes(response.status));
+  assert.match(response.headers.get("location") ?? "", /\/login\?return_to=%2Fdashboard$/);
 });
 
 test("returns a complete authenticated sample analysis", async () => {
