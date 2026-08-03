@@ -24,6 +24,12 @@ test("scores a resume against a job description and identifies gaps", () => {
   assert.ok(report.details.contextSummary.includes("priority requirements"));
   assert.ok(report.details.bulletInsights.length >= 4);
   assert.ok(report.details.bulletInsights.some((item) => item.score >= 80 && item.signals.includes("Quantified")));
+  assert.deepEqual(report.details.resumeReview.dimensions.map((item) => item.id), ["clarity", "impact", "action_language", "formatting", "keywords", "tone", "redundancy"]);
+  assert.ok(report.details.resumeReview.strengths.some((item) => item.line.includes("32%") && /Experience · line \d+/.test(item.location)));
+  assert.ok(report.details.resumeReview.areasToImprove.every((item) => item.location && item.line && item.suggestion));
+  assert.ok(report.details.resumeReview.suggestedRewrites.some((item) => item.original.includes("dashboards") && /reports or dashboards/i.test(item.improved) && item.improved.includes("[")));
+  assert.ok(report.details.resumeReview.suggestedAdditions.length >= 2 && report.details.resumeReview.suggestedAdditions.length <= 4);
+  assert.ok(report.details.resumeReview.missingElements.some((item) => item.label === "Quantified achievements" && item.status === "present"));
 });
 
 test("standalone analysis does not invent missing job keywords", () => {
@@ -56,6 +62,17 @@ test("detects weak language, first-person writing, and dense bullets", () => {
   assert.ok(report.details.bulletInsights[0].score < 60);
   assert.match(report.details.bulletInsights[0].guidance, /Rewrite as/i);
   assert.ok(report.details.riskFlags.some((item) => item.title === "Passive positioning"));
+  assert.ok(report.details.resumeReview.dimensions.find((item) => item.id === "tone")!.score < 80);
+  assert.ok(report.details.resumeReview.areasToImprove.some((item) => item.dimension === "tone" && item.line.includes("I was responsible")));
+  assert.ok(report.details.resumeReview.suggestedRewrites.some((item) => item.original.includes("responsible for") && item.improved.includes("[")));
+});
+
+test("detects repeated bullet language and ties it to a specific line", () => {
+  const report = analyzeResume("Sam Lee\n+91 9876543210 | sam@example.com\n\nSUMMARY\nOperations professional supporting customer teams and internal workflows.\n\nEXPERIENCE\n• Managed customer onboarding for new accounts.\n• Managed customer reporting for account leaders.\n• Managed customer escalations with support teams.\n\nEDUCATION\nBachelor of Commerce\n\nSKILLS\nCustomer service, communication, reporting");
+  const redundancy = report.details.resumeReview.dimensions.find((item) => item.id === "redundancy")!;
+  assert.ok(redundancy.score < 100);
+  assert.match(redundancy.summary, /managed|customer/i);
+  assert.ok(report.details.resumeReview.areasToImprove.some((item) => item.dimension === "redundancy" && /appears across 3 bullets/i.test(item.suggestion)));
 });
 
 test("detects a genuine role mismatch and lists unsupported job requirements", () => {

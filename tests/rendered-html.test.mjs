@@ -101,4 +101,8 @@ test("returns a complete authenticated sample analysis", async () => {
   assert.ok(payload.analysis.details.bulletInsights.length > 0);
   assert.equal(typeof payload.analysis.details.roleFitScore, "number");
   assert.ok(payload.analysis.details.mismatches.some((item) => item.requirement === "SQL"));
+  assert.equal(payload.analysis.details.resumeReview.dimensions.length, 7);
+  assert.ok(payload.analysis.details.resumeReview.strengths.some((item) => item.location.includes("line")));
+  assert.ok(payload.analysis.details.resumeReview.suggestedRewrites.some((item) => item.original && item.improved));
+  assert.ok(payload.analysis.details.resumeReview.missingElements.some((item) => item.label === "Professional summary"));
 });

@@ -43,6 +43,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
       transferableStrengths: [],
       bulletInsights: [],
       riskFlags: [],
+      resumeReview: { dimensions: [], strengths: [], areasToImprove: [], suggestedRewrites: [], suggestedAdditions: [], missingElements: [] },
     },
     stats: report.stats,
   };

@@ -51,6 +51,60 @@ export type RiskFlag = {
   detail: string;
 };
 
+export type ReviewDimensionId = "clarity" | "impact" | "action_language" | "formatting" | "keywords" | "tone" | "redundancy";
+
+export type ReviewDimension = {
+  id: ReviewDimensionId;
+  label: string;
+  score: number;
+  status: "strong" | "mixed" | "needs_work";
+  summary: string;
+};
+
+export type CitedStrength = {
+  dimension: ReviewDimensionId;
+  title: string;
+  location: string;
+  line: string;
+  explanation: string;
+};
+
+export type ImprovementArea = {
+  dimension: ReviewDimensionId;
+  priority: "high" | "medium" | "low";
+  location: string;
+  line: string;
+  suggestion: string;
+};
+
+export type SuggestedRewrite = {
+  location: string;
+  original: string;
+  improved: string;
+  reason: string;
+};
+
+export type SuggestedAddition = {
+  title: string;
+  text: string;
+  reason: string;
+};
+
+export type MissingElement = {
+  label: string;
+  status: "present" | "thin" | "missing";
+  detail: string;
+};
+
+export type DetailedResumeReview = {
+  dimensions: ReviewDimension[];
+  strengths: CitedStrength[];
+  areasToImprove: ImprovementArea[];
+  suggestedRewrites: SuggestedRewrite[];
+  suggestedAdditions: SuggestedAddition[];
+  missingElements: MissingElement[];
+};
+
 export type DeepAnalysis = {
   targetRole: string;
   resumeProfile: string;
@@ -65,6 +119,7 @@ export type DeepAnalysis = {
   transferableStrengths: string[];
   bulletInsights: BulletInsight[];
   riskFlags: RiskFlag[];
+  resumeReview: DetailedResumeReview;
 };
 
 export type ResumeAnalysis = {
@@ -440,7 +495,7 @@ function analyzeBullets(resumeText: string): BulletInsight[] {
     const firstWord = words[0]?.toLowerCase() ?? "";
     const hasAction = ACTION_VERBS.includes(firstWord);
     const hasMetric = /\b\d+(?:\.\d+)?(?:\s?%|\+|x|k|m|million|thousand)?\b/i.test(text);
-    const hasOutcome = /\b(?:by|resulting in|leading to|so that|which|improved|increased|reduced|saved|grew|accelerated|achieved)\b/i.test(text);
+    const hasOutcome = /\b(?:by|resulting in|leading to|so that|which|improved|increased|reduced|saved|grew|accelerated|achieved|maintained|maintaining)\b/i.test(text);
     const hasSpecificity = hasMetric || COMMON_SKILLS.some((skill) => lower.includes(skill)) || REQUIREMENT_CONCEPTS.some((concept) => concept.aliases.some((alias) => lower.includes(alias)));
     const hasWeakLanguage = WEAK_PHRASES.some((phrase) => lower.includes(phrase));
     const readable = words.length >= 8 && words.length <= 30;
@@ -453,6 +508,247 @@ function analyzeBullets(resumeText: string): BulletInsight[] {
       : `Rewrite as: “${hasAction ? firstWord.charAt(0).toUpperCase() + firstWord.slice(1) : "Improved"} [specific task or process] for [scope]${hasMetric ? "" : " by [X%/time/cost]"}, resulting in [business or customer outcome].”`;
     return { text, score, signals, issue, guidance };
   });
+}
+
+type ResumeLineRecord = {
+  lineNumber: number;
+  section: string;
+  text: string;
+  isBullet: boolean;
+  isHeading: boolean;
+};
+
+function getResumeLineRecords(resumeText: string): ResumeLineRecord[] {
+  let section = "Header";
+  return resumeText.split("\n").flatMap((rawLine, index) => {
+    const text = cleanLine(rawLine);
+    if (!text) return [];
+    const normalized = text.replace(/:$/, "");
+    const heading = SECTION_DEFINITIONS.find((item) => item.pattern.test(normalized));
+    if (heading) section = heading.name;
+    return [{
+      lineNumber: index + 1,
+      section,
+      text,
+      isBullet: /^\s*(?:[-•▪◦*]|\d+[.)])\s+/.test(rawLine),
+      isHeading: Boolean(heading),
+    }];
+  });
+}
+
+function recordLocation(record?: ResumeLineRecord) {
+  return record ? `${record.section} · line ${record.lineNumber}` : "Resume structure";
+}
+
+function reviewStatus(score: number): ReviewDimension["status"] {
+  return score >= 78 ? "strong" : score >= 55 ? "mixed" : "needs_work";
+}
+
+function metricInLine(text: string) {
+  return /\b\d+(?:\.\d+)?(?:\s?%|\+|x|k|m|million|thousand)?\b/i.test(text);
+}
+
+function rewriteBullet(original: string, insight: BulletInsight) {
+  const lower = original.toLowerCase();
+  const withoutPeriod = original.replace(/[.;]$/, "");
+  const stripped = withoutPeriod
+    .replace(/^I\s+(?:was\s+)?/i, "")
+    .replace(/^(?:was\s+)?responsible for\s+/i, "")
+    .replace(/^(?:helped|assisted)\s+(?:with|in)\s+/i, "")
+    .replace(/^worked on\s+/i, "");
+  if (/\b(?:teach|taught|student|classroom|lesson)\b/.test(lower)) {
+    return "Taught [subject] to [N] students across [N] classes, improving [assessment, participation or attendance] by [X]%.";
+  }
+  if (/\b(?:dashboard|dashboards|report|reports|reporting)\b/.test(lower)) {
+    return `${/\bbuilt\b/i.test(original) ? "Built" : "Produced"} [weekly/monthly] reports or dashboards for [N] stakeholders, reducing reporting time by [X hours] and enabling [specific decision or outcome].`;
+  }
+  if (/\b(?:customer|ticket|query|queries|support request)\b/.test(lower)) {
+    return "Resolved [N]+ customer requests per [day/week] using [tool or process], achieving [X]% CSAT and reducing response time by [Y]%.";
+  }
+  if (/\b(?:onboard|train|mentor|coach)\b/.test(lower)) {
+    return "Led onboarding or training for [N] team members, improving [quality, productivity or time-to-proficiency] by [X]%.";
+  }
+  if (/\b(?:data|analy|trend|insight)\b/.test(lower)) {
+    return "Analyzed [dataset or business process] using [tool], identified [specific insight], and improved [business metric] by [X]%.";
+  }
+  if (insight.signals.includes("Strong opening verb") && insight.signals.includes("Quantified")) {
+    return `${withoutPeriod}, resulting in [specific customer, revenue, quality or efficiency outcome].`;
+  }
+  if (insight.signals.includes("Strong opening verb")) {
+    return `${withoutPeriod}, improving [relevant metric] by [X]% within [timeframe].`;
+  }
+  const verb = /\b(?:manage|coordinate|operation|process)\b/.test(lower) ? "Streamlined" : "Delivered";
+  return `${verb} ${stripped.charAt(0).toLowerCase()}${stripped.slice(1)} for [scope], improving [relevant result] by [X]%.`;
+}
+
+function buildDetailedReview(args: {
+  resumeText: string;
+  mode: AnalysisMode;
+  keywordScore: number;
+  targetRole: string;
+  sectionBlocks: Map<string, string>;
+  matchedKeywords: string[];
+  missingKeywords: string[];
+  requirements: RequirementEvidence[];
+  bulletInsights: BulletInsight[];
+  wordCount: number;
+  metricCount: number;
+  actionVerbCount: number;
+  weakPhraseCount: number;
+  firstPersonCount: number;
+  longBulletCount: number;
+  hasEmail: boolean;
+  hasPhone: boolean;
+  hasLinkedIn: boolean;
+}): DetailedResumeReview {
+  const records = getResumeLineRecords(args.resumeText);
+  const bulletRecords = records.filter((record) => record.isBullet);
+  const metricBullets = bulletRecords.filter((record) => metricInLine(record.text));
+  const actionBullets = bulletRecords.filter((record) => ACTION_VERBS.includes((record.text.match(/^[a-z]+/i)?.[0] ?? "").toLowerCase()));
+  const casualPattern = /\b(?:awesome|stuff|things|a lot|really|very|pretty good|kind of|sort of|etc\.?|hard working|team player)\b/i;
+  const casualRecords = records.filter((record) => casualPattern.test(record.text));
+
+  const openerMap = new Map<string, ResumeLineRecord[]>();
+  const phraseMap = new Map<string, ResumeLineRecord[]>();
+  for (const record of bulletRecords) {
+    const tokens = (record.text.toLowerCase().match(/[a-z][a-z-]{2,}/g) ?? []).filter((token) => !STOP_WORDS.has(token));
+    const opener = tokens[0];
+    if (opener) openerMap.set(opener, [...(openerMap.get(opener) ?? []), record]);
+    const phrases = new Set(tokens.slice(0, 18).flatMap((token, index) => {
+      const next = tokens[index + 1];
+      return next ? [`${token} ${next}`] : [];
+    }));
+    for (const phrase of phrases) phraseMap.set(phrase, [...(phraseMap.get(phrase) ?? []), record]);
+  }
+  const repeatedOpeners = [...openerMap.entries()].filter(([, lines]) => lines.length >= 2).sort((a, b) => b[1].length - a[1].length);
+  const repeatedPhrases = [...phraseMap.entries()].filter(([, lines]) => lines.length >= 2).sort((a, b) => b[1].length - a[1].length);
+  const redundancyLabels = [...new Set([
+    ...repeatedOpeners.map(([term]) => `“${term}” as an opening verb`),
+    ...repeatedPhrases.map(([term]) => `“${term}”`),
+  ])].slice(0, 3);
+
+  const bulletCount = bulletRecords.length;
+  const metricRatio = metricBullets.length / Math.max(bulletCount, 1);
+  const actionRatio = actionBullets.length / Math.max(bulletCount, 1);
+  const missingStandardSections = ["Summary", "Experience", "Education", "Skills"].filter((name) => !args.sectionBlocks.has(name));
+  const summaryWords = (args.sectionBlocks.get("Summary")?.match(/[\p{L}\p{N}][\p{L}\p{N}'+.-]*/gu) ?? []).length;
+  const clarityScore = clamp(92 - args.longBulletCount * 12 - args.weakPhraseCount * 7 - missingStandardSections.length * 7);
+  const impactDimensionScore = clamp(32 + metricRatio * 48 + Math.min(args.metricCount * 4, 20));
+  const actionScore = clamp(42 + actionRatio * 50 - args.weakPhraseCount * 9);
+  const lengthPenalty = args.wordCount < 180 ? 28 : args.wordCount > 1000 ? 25 : args.wordCount > 850 ? 10 : 0;
+  const formattingScore = clamp(96 - lengthPenalty - args.longBulletCount * 8 - missingStandardSections.length * 10);
+  const toneScore = clamp(100 - args.firstPersonCount * 10 - casualRecords.length * 14 - args.weakPhraseCount * 5);
+  const redundancyScore = clamp(100 - repeatedOpeners.length * 14 - repeatedPhrases.length * 7);
+  const dimensions: ReviewDimension[] = [
+    { id: "clarity", label: "Clarity & structure", score: clarityScore, status: reviewStatus(clarityScore), summary: missingStandardSections.length ? `${missingStandardSections.length} standard section${missingStandardSections.length === 1 ? " is" : "s are"} absent, and ${args.longBulletCount} bullet${args.longBulletCount === 1 ? " is" : "s are"} overly dense.` : `${args.sectionBlocks.size} recognized sections create a clear hierarchy; ${args.longBulletCount ? `${args.longBulletCount} dense bullet${args.longBulletCount === 1 ? " needs" : "s need"} tightening.` : "bullets are easy to scan."}` },
+    { id: "impact", label: "Achievement impact", score: impactDimensionScore, status: reviewStatus(impactDimensionScore), summary: `${metricBullets.length} of ${bulletCount || 0} experience bullets include a number or metric. Strong resumes usually quantify at least half of their achievement bullets.` },
+    { id: "action_language", label: "Action verbs", score: actionScore, status: reviewStatus(actionScore), summary: `${actionBullets.length} of ${bulletCount || 0} bullets open with a recognized action verb; ${args.weakPhraseCount} weak or passive phrase${args.weakPhraseCount === 1 ? " was" : "s were"} detected.` },
+    { id: "formatting", label: "Formatting & length", score: formattingScore, status: reviewStatus(formattingScore), summary: `${args.wordCount} words with ${bulletCount} bullets. ${args.wordCount >= 250 && args.wordCount <= 900 ? "The length is within a practical ATS-friendly range." : args.wordCount < 250 ? "The resume may be too thin to show enough evidence." : "The resume may dilute its strongest evidence."}` },
+    { id: "keywords", label: "ATS keyword relevance", score: args.keywordScore, status: reviewStatus(args.keywordScore), summary: args.mode === "job_match" ? `${args.matchedKeywords.length} target terms match; ${args.requirements.filter((item) => item.status === "missing").length} job requirements lack direct evidence.` : `${args.matchedKeywords.length} recognizable professional skills were found. Add a job description for role-specific keyword scoring.` },
+    { id: "tone", label: "Tone consistency", score: toneScore, status: reviewStatus(toneScore), summary: casualRecords.length || args.firstPersonCount ? `${casualRecords.length} casual phrase${casualRecords.length === 1 ? "" : "s"} and ${args.firstPersonCount} first-person reference${args.firstPersonCount === 1 ? "" : "s"} interrupt the professional tone.` : "The resume maintains a consistent professional, concise tone." },
+    { id: "redundancy", label: "Redundancy", score: redundancyScore, status: reviewStatus(redundancyScore), summary: redundancyLabels.length ? `Repeated language includes ${redundancyLabels.join(", ")}. Keep important ATS terms, but vary the surrounding achievement language.` : "No material repeated opening verbs or multi-word phrases were found across bullets." },
+  ];
+
+  const insightPairs = args.bulletInsights.flatMap((insight) => {
+    const record = bulletRecords.find((candidate) => candidate.text === insight.text);
+    return record ? [{ insight, record }] : [];
+  });
+  const strengths: CitedStrength[] = insightPairs
+    .filter(({ insight }) => insight.score >= 65)
+    .sort((a, b) => b.insight.score - a.insight.score)
+    .slice(0, 4)
+    .map(({ insight, record }) => {
+      const quantified = insight.signals.includes("Quantified");
+      const actionLed = insight.signals.includes("Strong opening verb");
+      return {
+        dimension: quantified ? "impact" : actionLed ? "action_language" : "clarity",
+        title: quantified ? "Specific, measurable achievement" : actionLed ? "Clear ownership" : "Easy-to-scan evidence",
+        location: recordLocation(record),
+        line: record.text,
+        explanation: quantified
+          ? "This line shows scale or outcome, making the contribution credible and easy to compare."
+          : actionLed
+            ? "The opening verb makes personal ownership immediately clear."
+            : "The line is concise and gives recruiters usable evidence without extra wording.",
+      } as CitedStrength;
+    });
+  const summaryRecord = records.find((record) => record.section === "Summary" && !record.isHeading);
+  if (summaryRecord && strengths.length < 5) strengths.push({ dimension: "clarity", title: "Professional context appears early", location: recordLocation(summaryRecord), line: summaryRecord.text, explanation: "The summary gives recruiters a quick frame for the experience that follows." });
+  const skillsRecord = records.find((record) => record.section === "Skills" && !record.isHeading);
+  if (skillsRecord && strengths.length < 6) strengths.push({ dimension: "keywords", title: "ATS-readable skills line", location: recordLocation(skillsRecord), line: skillsRecord.text, explanation: "A plainly labelled skills line makes relevant capabilities easier for ATS software and recruiters to find." });
+  if (!strengths.length) {
+    const firstContent = records.find((record) => !record.isHeading);
+    strengths.push({ dimension: "clarity", title: "Usable starting content", location: recordLocation(firstContent), line: firstContent?.text ?? "No detailed resume line was extracted.", explanation: "This gives the review a starting point, but stronger evidence and standard sections are still needed." });
+  }
+
+  const areasToImprove: ImprovementArea[] = [];
+  for (const { insight, record } of insightPairs.sort((a, b) => a.insight.score - b.insight.score).slice(0, 5)) {
+    if (insight.score >= 82) continue;
+    const lacksMetric = !insight.signals.includes("Quantified");
+    const lacksAction = !insight.signals.includes("Strong opening verb");
+    areasToImprove.push({
+      dimension: lacksMetric ? "impact" : lacksAction ? "action_language" : "clarity",
+      priority: insight.score < 50 ? "high" : "medium",
+      location: recordLocation(record),
+      line: record.text,
+      suggestion: lacksMetric
+        ? "Add truthful scale and outcome: volume, percentage, time saved, quality score, revenue, cost or team size."
+        : lacksAction
+          ? "Replace the passive opening with a precise verb that shows what you personally delivered."
+          : "Keep one action and one result in this bullet; remove supporting detail that does not change the outcome.",
+    });
+  }
+  for (const record of casualRecords.slice(0, 2)) areasToImprove.push({ dimension: "tone", priority: "medium", location: recordLocation(record), line: record.text, suggestion: "Replace casual or vague wording with a concrete task, scope and professional result." });
+  if (args.firstPersonCount) {
+    const record = records.find((item) => /\b(?:i|me|my|mine|we|our|ours)\b/i.test(item.text));
+    if (record) areasToImprove.push({ dimension: "tone", priority: "low", location: recordLocation(record), line: record.text, suggestion: "Remove the first-person pronoun and begin directly with the action verb." });
+  }
+  const repeated = repeatedOpeners[0] ?? repeatedPhrases[0];
+  if (repeated) areasToImprove.push({ dimension: "redundancy", priority: "low", location: recordLocation(repeated[1][0]), line: repeated[1][0].text, suggestion: `“${repeated[0]}” appears across ${repeated[1].length} bullets. Keep it where ATS relevance is important, but vary the opening verb or describe a different outcome.` });
+  if (summaryWords > 0 && summaryWords < 30 && summaryRecord) areasToImprove.push({ dimension: "clarity", priority: "medium", location: recordLocation(summaryRecord), line: summaryRecord.text, suggestion: "Expand this to 2–3 concise lines covering experience level, strongest capabilities and one verified outcome relevant to the target role." });
+  if (args.wordCount < 180) areasToImprove.push({ dimension: "formatting", priority: "medium", location: "Overall resume length", line: `${args.wordCount} total words were extracted from the resume.`, suggestion: "Add 2–3 relevant achievement bullets for each recent role, prioritizing scope, tools and outcomes instead of generic responsibilities." });
+  for (const section of missingStandardSections.slice(0, 2)) areasToImprove.push({ dimension: "clarity", priority: "high", location: `${section} section`, line: `No standard ${section} section was detected.`, suggestion: `Add a clearly labelled ${section} section so ATS software can classify the content correctly.` });
+  for (const gap of args.requirements.filter((item) => item.status === "missing" && item.importance === "required").slice(0, 2)) areasToImprove.push({ dimension: "keywords", priority: "high", location: "Experience / Skills sections", line: `No supporting line was found for “${gap.requirement}”.`, suggestion: gap.guidance });
+  const uniqueAreas = areasToImprove.filter((item, index, all) => all.findIndex((candidate) => candidate.location === item.location && candidate.dimension === item.dimension) === index).slice(0, 9);
+
+  const suggestedRewrites: SuggestedRewrite[] = insightPairs
+    .filter(({ insight }) => insight.score < 88)
+    .sort((a, b) => a.insight.score - b.insight.score)
+    .slice(0, 4)
+    .map(({ insight, record }) => ({
+      location: recordLocation(record),
+      original: record.text,
+      improved: rewriteBullet(record.text, insight),
+      reason: `Strengthens ${[!insight.signals.includes("Strong opening verb") && "the opening verb", !insight.signals.includes("Quantified") && "measurable impact", !insight.signals.includes("Outcome stated") && "the outcome"].filter(Boolean).join(", ") || "clarity and specificity"}. Replace bracketed placeholders only with facts you can verify.`,
+    }));
+
+  const additions: SuggestedAddition[] = [];
+  const profile = detectDomain(args.sectionBlocks.get("Summary") ?? args.resumeText)?.label ?? "professional";
+  const roleName = args.mode === "job_match" ? args.targetRole : profile;
+  if (!args.sectionBlocks.has("Summary") || summaryWords < 30) additions.push({ title: "Targeted professional summary", text: `${profile} professional with [X] years of experience in [2–3 strongest capabilities], recognized for [measurable result]. Targeting ${roleName} opportunities where this experience can improve [business or customer outcome].`, reason: "A focused 3–4 line summary quickly connects your background to the role." });
+  if (metricRatio < 0.5) additions.push({ title: "Quantified achievement", text: "• Improved [process, customer outcome or quality measure] for [scope], increasing [metric] by [X]% within [timeframe].", reason: "This fills the current proof gap without inventing a result—replace every bracket with a verified fact." });
+  if (!/\b(?:led|managed|mentored|trained|supervised|coordinated)\b/i.test(args.resumeText)) additions.push({ title: "Leadership or ownership example", text: "• Led or coordinated [project/team/process] involving [N] people, delivering [specific outcome] [on time/under budget] and improving [metric] by [X]%.", reason: "Strong resumes show ownership even when the candidate did not hold a formal manager title." });
+  const supportedTerms = args.requirements.filter((item) => item.status === "supported").map((item) => item.requirement).slice(0, 6);
+  if (!args.sectionBlocks.has("Skills") || (args.mode === "job_match" && supportedTerms.length)) additions.push({ title: "Role-relevant skills line", text: `Core skills: ${(supportedTerms.length ? supportedTerms : args.matchedKeywords.slice(0, 6)).join(", ") || "[verified tools], [role skill], [domain capability]"}.`, reason: "Use only capabilities supported elsewhere in the resume; this improves ATS retrieval without keyword stuffing." });
+  const requiredGap = args.requirements.find((item) => item.status === "missing" && item.importance === "required");
+  if (requiredGap && additions.length < 4) additions.push({ title: `Evidence for ${requiredGap.requirement} — only if true`, text: `• Applied ${requiredGap.requirement} to [specific task or project], producing [verified outcome] for [scope].`, reason: "A required keyword is useful only when the resume also gives credible context and evidence." });
+  while (additions.length < 2) additions.push({ title: additions.length ? "Scope statement" : "Outcome statement", text: additions.length ? "• Supported [N] customers, users, students or stakeholders across [location/team], while maintaining [quality or satisfaction metric]." : "• Delivered [specific result] by improving [process or task], measured by [time, quality, cost or volume].", reason: "Adding scale and outcome helps a recruiter understand the level of responsibility." });
+
+  const summaryStatus: MissingElement["status"] = !args.sectionBlocks.has("Summary") ? "missing" : summaryWords >= 30 && summaryWords <= 110 ? "present" : "thin";
+  const contactStatus: MissingElement["status"] = args.hasEmail && args.hasPhone ? "present" : args.hasEmail || args.hasPhone ? "thin" : "missing";
+  const evidenceThreshold = Math.max(2, Math.ceil(bulletCount / 3));
+  const missingElements: MissingElement[] = [
+    { label: "Contact information", status: contactStatus, detail: contactStatus === "present" ? "Email and phone are both present." : `Add ${[!args.hasEmail && "email", !args.hasPhone && "phone"].filter(Boolean).join(" and ")}.` },
+    { label: "Professional summary", status: summaryStatus, detail: summaryStatus === "present" ? `${summaryWords} words gives a concise professional introduction.` : summaryStatus === "thin" ? "The summary exists but needs clearer role, experience and outcome evidence." : "No standard Summary or Profile section was detected." },
+    { label: "Experience section", status: !args.sectionBlocks.has("Experience") ? "missing" : bulletCount >= 3 ? "present" : "thin", detail: !args.sectionBlocks.has("Experience") ? "No standard Experience heading was detected." : `${bulletCount} experience bullet${bulletCount === 1 ? "" : "s"} detected.` },
+    { label: "Skills section", status: !args.sectionBlocks.has("Skills") ? "missing" : args.mode === "job_match" && args.matchedKeywords.length < 3 ? "thin" : "present", detail: !args.sectionBlocks.has("Skills") ? "Add a plainly labelled Skills section." : `${args.matchedKeywords.length} recognized${args.mode === "job_match" ? " target" : " professional"} terms found.` },
+    { label: "Education section", status: args.sectionBlocks.has("Education") ? "present" : "missing", detail: args.sectionBlocks.has("Education") ? "A standard Education heading is present." : "Degree, institution and completion year should appear under Education." },
+    { label: "Quantified achievements", status: args.metricCount >= evidenceThreshold ? "present" : args.metricCount ? "thin" : "missing", detail: `${args.metricCount} measurable result${args.metricCount === 1 ? "" : "s"} detected; aim for metrics in at least half of high-value bullets.` },
+    { label: "LinkedIn profile", status: args.hasLinkedIn ? "present" : "missing", detail: args.hasLinkedIn ? "A LinkedIn profile URL is present." : "Add a customized LinkedIn URL if the profile is current and complete." },
+  ];
+  if (args.mode === "job_match") missingElements.push({ label: "Job-description alignment", status: args.keywordScore >= 70 ? "present" : args.keywordScore >= 45 ? "thin" : "missing", detail: `${args.keywordScore}/100 relevance; ${args.requirements.filter((item) => item.status === "missing").length} requirements have no direct evidence.` });
+
+  return { dimensions, strengths: strengths.slice(0, 6), areasToImprove: uniqueAreas, suggestedRewrites, suggestedAdditions: additions.slice(0, 4), missingElements };
 }
 
 function buildRiskFlags(args: { weakPhraseCount: number; firstPersonCount: number; longBulletCount: number; metricCount: number; bulletCount: number; missingSections: string[]; requirements: RequirementEvidence[] }): RiskFlag[] {
@@ -743,6 +1039,26 @@ export function analyzeResume(resumeText: string, jobDescription = ""): ResumeAn
     ? roleComparison.mismatches[0].reason
     : riskFlags[0]?.detail
       ?? (mode === "job_match" && missingKeywords.length ? `Role language is missing around ${missingKeywords.slice(0, 3).join(", ")}.` : "No critical ATS risk was detected; continue tailoring for each application.");
+  const resumeReview = buildDetailedReview({
+    resumeText: cleanResume,
+    mode,
+    keywordScore,
+    targetRole,
+    sectionBlocks,
+    matchedKeywords,
+    missingKeywords,
+    requirements: requirementEvidence,
+    bulletInsights,
+    wordCount: words.length,
+    metricCount,
+    actionVerbCount,
+    weakPhraseCount,
+    firstPersonCount,
+    longBulletCount,
+    hasEmail,
+    hasPhone,
+    hasLinkedIn,
+  });
 
   return {
     mode,
@@ -770,6 +1086,7 @@ export function analyzeResume(resumeText: string, jobDescription = ""): ResumeAn
       transferableStrengths: mode === "job_match" ? roleComparison.transferableStrengths : [],
       bulletInsights,
       riskFlags,
+      resumeReview,
     },
     stats: {
       wordCount: words.length,

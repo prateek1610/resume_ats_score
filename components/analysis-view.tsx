@@ -56,6 +56,7 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
     transferableStrengths: [],
     bulletInsights: [],
     riskFlags: [],
+    resumeReview: { dimensions: [], strengths: [], areasToImprove: [], suggestedRewrites: [], suggestedAdditions: [], missingElements: [] },
   };
   const sections = analysis.sections.map(normalizeSection);
   const highPriority = analysis.recommendations.filter((item) => item.priority === "high").length;
@@ -73,6 +74,14 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
     action: item.guidance,
   }));
   const transferableStrengths = details.transferableStrengths ?? details.requirementEvidence.filter((item) => item.status !== "missing").slice(0, 5).map((item) => item.requirement);
+  const review = details.resumeReview ?? {
+    dimensions: [],
+    strengths: analysis.strengths.map((strength) => ({ dimension: "clarity" as const, title: "Saved report strength", location: "Earlier report", line: strength, explanation: "Re-upload this resume to generate line-level evidence for the newest review format." })),
+    areasToImprove: analysis.recommendations.slice(0, 6).map((item) => ({ dimension: item.category === "impact" ? "impact" as const : item.category === "keywords" ? "keywords" as const : "clarity" as const, priority: item.priority, location: "Earlier report", line: item.title, suggestion: item.detail })),
+    suggestedRewrites: [],
+    suggestedAdditions: [],
+    missingElements: sections.map((section) => ({ label: section.name, status: section.present ? "present" as const : "missing" as const, detail: section.feedback })),
+  };
   const diagnostics = [
     [analysis.stats.wordCount, "Words"],
     [analysis.stats.bulletCount, "Bullets"],
@@ -103,8 +112,8 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
       <nav className="report-jump-nav" aria-label="Analysis sections">
         <a href="#overview"><span>01</span> Overview</a>
         {analysis.mode === "job_match" && <a href="#role-fit"><span>02</span> Role fit</a>}
-        <a href="#resume-quality"><span>{analysis.mode === "job_match" ? "03" : "02"}</span> Resume quality</a>
-        <a href="#action-plan"><span>{analysis.mode === "job_match" ? "04" : "03"}</span> Action plan</a>
+        <a href="#resume-quality"><span>{analysis.mode === "job_match" ? "03" : "02"}</span> Deep review</a>
+        <a href="#action-plan"><span>{analysis.mode === "job_match" ? "04" : "03"}</span> Priorities</a>
       </nav>
 
       <section className="report-chapter" id="overview">
@@ -189,46 +198,51 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
       )}
 
       <section className="report-chapter" id="resume-quality">
-        <ChapterHeading number={analysis.mode === "job_match" ? "03" : "02"} eyebrow="Resume quality" title="Structure and writing quality" copy="Review section health first, then open only the bullets that need your attention." />
+        <ChapterHeading number={analysis.mode === "job_match" ? "03" : "02"} eyebrow="Deep resume review" title="Evidence-based writing analysis" copy="Every finding below is tied to the resume itself. Bracketed rewrite placeholders must be replaced only with facts you can verify." />
 
-        <section className="section-audit section-audit-v2" aria-label="Resume section audit">
-          {sections.map((section) => (
-            <article className={`section-audit-card section-${section.status}`} key={section.name}>
-              <div className="section-audit-top"><div><span className="section-state">{section.status}</span><h3>{section.name}</h3></div><strong>{section.score}<small>/100</small></strong></div>
-              <p>{section.feedback}</p><ul>{section.checks.map((check) => <li key={check}>{check}</li>)}</ul>
-            </article>
-          ))}
+        {review.dimensions.length ? <section className="dimension-grid" aria-label="Resume review dimensions">
+          {review.dimensions.map((dimension) => <article className={`dimension-card dimension-${dimension.status}`} key={dimension.id}>
+            <header><span>{dimension.label}</span><strong>{dimension.score}<small>/100</small></strong></header>
+            <div><i style={{ width: `${dimension.score}%` }} /></div><p>{dimension.summary}</p>
+          </article>)}
+        </section> : <div className="report-card"><p className="empty-copy">This saved report predates the seven-dimension review. Re-upload the resume to generate it.</p></div>}
+
+        <section className="review-section review-strengths" aria-labelledby="strengths-title">
+          <header className="review-section-heading"><span>1</span><div><p className="eyebrow">Evidence that works</p><h3 id="strengths-title">Strengths</h3><p>Specific lines that already help recruiter confidence.</p></div></header>
+          <div className="cited-strength-grid">{review.strengths.map((item, index) => <article key={`${item.location}-${index}`}>
+            <div className="review-meta"><span>{item.dimension.replace("_", " ")}</span><small>{item.location}</small></div><h4>{item.title}</h4><blockquote>“{item.line}”</blockquote><p>{item.explanation}</p>
+          </article>)}</div>
         </section>
 
-        <section className="diagnostics-card diagnostics-card-v2">
-          <div><p className="eyebrow">Resume diagnostics</p><h2>Writing signals</h2></div>
-          <div className="diagnostics-grid">{diagnostics.map(([value, label]) => <span key={label}><strong>{value}</strong>{label}</span>)}</div>
+        <section className="review-section review-improvements" aria-labelledby="improvements-title">
+          <header className="review-section-heading"><span>2</span><div><p className="eyebrow">Specific and actionable</p><h3 id="improvements-title">Areas to Improve</h3><p>Each issue points to the exact line or section that needs attention.</p></div></header>
+          {review.areasToImprove.length ? <div className="improvement-list">{review.areasToImprove.map((item, index) => <article key={`${item.location}-${item.dimension}-${index}`}>
+            <div className="improvement-index">{String(index + 1).padStart(2, "0")}</div><div className="improvement-source"><div className="review-meta"><span className={`priority priority-${item.priority}`}>{item.priority}</span><small>{item.location}</small></div><blockquote>“{item.line}”</blockquote></div><div className="improvement-advice"><strong>{item.dimension.replace("_", " ")}</strong><p>{item.suggestion}</p></div>
+          </article>)}</div> : <div className="match-complete"><span>✓</span><p>No material line-level issue was detected. Tailor the strongest bullets for each job.</p></div>}
         </section>
 
-        {details.bulletInsights.length > 0 && (
-          <div className="quality-block">
-            <div className="subsection-heading"><div><p className="eyebrow">Bullet-level coaching</p><h3>Open a bullet to see the coaching</h3></div><span>{details.bulletInsights.length} bullets reviewed</span></div>
-            <div className="bullet-review-list">
-              {details.bulletInsights.map((bullet, index) => (
-                <details className="bullet-review" key={`${bullet.text}-${index}`} open={index === 0}>
-                  <summary><span className={`bullet-score-pill ${bullet.score >= 75 ? "score-good" : bullet.score >= 50 ? "score-mid" : "score-low"}`}>{bullet.score}</span><p>“{bullet.text}”</p><i aria-hidden="true">⌄</i></summary>
-                  <div className="bullet-review-body">
-                    <div className="bullet-signals">{bullet.signals.map((signal) => <span key={signal}>✓ {signal}</span>)}{!bullet.signals.length && <span className="bullet-signal-risk">No strong impact signals detected</span>}</div>
-                    <p className="bullet-issue">{bullet.issue}</p>
-                    <div className="bullet-guidance"><strong>Coach’s note</strong><p>{bullet.guidance}</p></div>
-                  </div>
-                </details>
-              ))}
-            </div>
-          </div>
-        )}
+        <section className="review-section review-rewrites" aria-labelledby="rewrites-title">
+          <header className="review-section-heading"><span>3</span><div><p className="eyebrow">Original → improved</p><h3 id="rewrites-title">Suggested Rewrites</h3><p>Stronger verbs, tighter phrasing and honest metric placeholders—never fabricated achievements.</p></div></header>
+          {review.suggestedRewrites.length ? <div className="rewrite-list">{review.suggestedRewrites.map((item, index) => <article className="rewrite-card" key={`${item.location}-${index}`}>
+            <header><span>{String(index + 1).padStart(2, "0")}</span><small>{item.location}</small></header><div className="rewrite-comparison"><div><b>Original line</b><p>{item.original}</p></div><span aria-hidden="true">→</span><div><b>Improved version</b><p>{item.improved}</p></div></div><footer><strong>Why this is stronger</strong><p>{item.reason}</p></footer>
+          </article>)}</div> : <div className="report-card"><p className="empty-copy">No weak bullet was selected for rewriting. Re-upload older reports to generate line-by-line rewrites.</p></div>}
+        </section>
 
-        {details.riskFlags.length > 0 && (
-          <div className="quality-block risk-block">
-            <div className="subsection-heading"><div><p className="eyebrow">Risk scan</p><h3>Shortlist confidence risks</h3></div></div>
-            <div className="risk-list">{details.riskFlags.map((risk) => <article key={risk.title}><span className={`risk-dot risk-${risk.severity}`} /><div><strong>{risk.title}</strong><p>{risk.detail}</p></div></article>)}</div>
-          </div>
-        )}
+        <section className="review-section review-additions" aria-labelledby="additions-title">
+          <header className="review-section-heading"><span>4</span><div><p className="eyebrow">Fill important gaps</p><h3 id="additions-title">Sentences You Could Add</h3><p>Use these patterns only when they reflect your real experience.</p></div></header>
+          {review.suggestedAdditions.length ? <div className="addition-grid">{review.suggestedAdditions.map((item, index) => <article key={`${item.title}-${index}`}><div><span>Suggested line {String(index + 1).padStart(2, "0")}</span><h4>{item.title}</h4></div><blockquote>{item.text}</blockquote><p>{item.reason}</p></article>)}</div> : <div className="report-card"><p className="empty-copy">Re-upload this resume to generate role-aware sentences you could add.</p></div>}
+        </section>
+
+        <section className="review-section review-checklist" aria-labelledby="checklist-title">
+          <header className="review-section-heading"><span>5</span><div><p className="eyebrow">Completeness scan</p><h3 id="checklist-title">Missing Elements Checklist</h3><p>Present, thin and missing resume essentials in one place.</p></div></header>
+          <div className="checklist-table">{review.missingElements.map((item) => <article key={item.label}><span className={`check-status check-${item.status}`}>{item.status === "present" ? "✓" : item.status === "thin" ? "!" : "×"}</span><div><strong>{item.label}</strong><p>{item.detail}</p></div><em>{item.status}</em></article>)}</div>
+        </section>
+
+        <details className="technical-audit">
+          <summary>Open section scores and diagnostic counts <span>{sections.length} sections · {analysis.stats.wordCount} words</span></summary>
+          <section className="section-audit section-audit-v2" aria-label="Resume section audit">{sections.map((section) => <article className={`section-audit-card section-${section.status}`} key={section.name}><div className="section-audit-top"><div><span className="section-state">{section.status}</span><h3>{section.name}</h3></div><strong>{section.score}<small>/100</small></strong></div><p>{section.feedback}</p><ul>{section.checks.map((check) => <li key={check}>{check}</li>)}</ul></article>)}</section>
+          <section className="diagnostics-card diagnostics-card-v2"><div><p className="eyebrow">Resume diagnostics</p><h2>Writing signals</h2></div><div className="diagnostics-grid">{diagnostics.map(([value, label]) => <span key={label}><strong>{value}</strong>{label}</span>)}</div></section>
+        </details>
       </section>
 
       <section className="report-chapter" id="action-plan">
