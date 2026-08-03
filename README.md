@@ -6,6 +6,8 @@ ResumeLens is a production-ready ATS resume review web application. Signed-in us
 
 - Standalone ATS readiness and job-description match modes
 - Deterministic, explainable scores for keywords, structure, impact, and essentials
+- Deep resume diagnostics covering section health, measurable outcomes, action language, weak phrases, pronouns, bullet readability, and role-specific keyword coverage
+- Recruiter-style strengths, improvement points, section-by-section feedback, prioritized fixes, and concrete rewrite examples
 - PDF and DOCX text extraction with file-size, type, page, and processing limits
 - Sign in with ChatGPT and server-side ownership checks
 - Private original-resume storage in R2 and report metadata/history in D1
