@@ -13,6 +13,13 @@ test("scores a resume against a job description and identifies gaps", () => {
   assert.ok(report.strengths.some((item) => /measurable|action|keyword/i.test(item)));
   assert.ok(report.sections.some((section) => section.name === "Experience" && section.score >= 70));
   assert.ok(report.recommendations.every((item) => item.why));
+  assert.match(report.details.targetRole, /Operations Analyst/i);
+  assert.ok(report.details.requirementEvidence.some((item) => item.requirement === "Excel" && item.status === "supported" && item.evidence.length > 0));
+  assert.ok(report.details.requirementEvidence.some((item) => item.requirement === "SQL" && item.status === "missing"));
+  assert.ok(report.details.requirementEvidence.some((item) => item.requirement === "Power BI" && item.status === "missing"));
+  assert.ok(report.details.contextSummary.includes("priority requirements"));
+  assert.ok(report.details.bulletInsights.length >= 4);
+  assert.ok(report.details.bulletInsights.some((item) => item.score >= 80 && item.signals.includes("Quantified")));
 });
 
 test("standalone analysis does not invent missing job keywords", () => {
@@ -22,6 +29,8 @@ test("standalone analysis does not invent missing job keywords", () => {
   assert.ok(report.structureScore >= 70);
   assert.ok(report.stats.metricCount >= 3);
   assert.equal(report.stats.weakPhraseCount, 0);
+  assert.equal(report.details.requirementEvidence.length, 0);
+  assert.match(report.details.contextSummary, /without a job description/i);
 });
 
 test("flags missing essentials and weak impact in a sparse resume", () => {
@@ -40,4 +49,7 @@ test("detects weak language, first-person writing, and dense bullets", () => {
   assert.ok(report.stats.longBulletCount >= 1);
   assert.ok(report.recommendations.some((item) => item.id === "weak-language"));
   assert.ok(report.recommendations.some((item) => item.id === "long-bullets"));
+  assert.ok(report.details.bulletInsights[0].score < 60);
+  assert.match(report.details.bulletInsights[0].guidance, /Rewrite as/i);
+  assert.ok(report.details.riskFlags.some((item) => item.title === "Passive positioning"));
 });

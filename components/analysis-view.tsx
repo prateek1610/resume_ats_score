@@ -33,6 +33,16 @@ function normalizeSection(section: Partial<SectionInsight> & { name: string; pre
 
 export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
   const verdict = scoreVerdict(analysis.overallScore);
+  const details = analysis.details ?? {
+    targetRole: analysis.mode === "job_match" ? "Target role" : "General ATS readiness",
+    fitLabel: "ATS review",
+    contextSummary: "Upload this resume again to generate the newest contextual analysis.",
+    strongestEvidence: analysis.strengths[0] ?? "No strong evidence summary is available.",
+    biggestRisk: analysis.recommendations[0]?.detail ?? "No critical risk was detected.",
+    requirementEvidence: [],
+    bulletInsights: [],
+    riskFlags: [],
+  };
   const highPriority = analysis.recommendations.filter((item) => item.priority === "high").length;
   const strongSections = analysis.sections.filter((section) => section.status === "strong").length;
   const sections = analysis.sections.map(normalizeSection);
@@ -77,6 +87,89 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
           </div>
         ))}
       </section>
+
+      <section className="report-section-heading">
+        <div><p className="eyebrow">Contextual role analysis</p><h2>What your resume actually proves</h2></div>
+        <p>Evidence-led role fit—not just keyword counting.</p>
+      </section>
+
+      <section className="context-panel">
+        <div className="context-role">
+          <span>Target context</span>
+          <h3>{details.targetRole}</h3>
+          <strong>{details.fitLabel}</strong>
+          <p>{details.contextSummary}</p>
+        </div>
+        <div className="context-evidence context-evidence-positive">
+          <span>Strongest proof</span>
+          <blockquote>“{details.strongestEvidence}”</blockquote>
+        </div>
+        <div className="context-evidence context-evidence-risk">
+          <span>Biggest application risk</span>
+          <p>{details.biggestRisk}</p>
+        </div>
+      </section>
+
+      {analysis.mode === "job_match" && details.requirementEvidence.length > 0 && (
+        <>
+          <section className="report-section-heading">
+            <div><p className="eyebrow">Requirement evidence map</p><h2>Job need → resume proof</h2></div>
+            <p>Each important requirement is classified by the evidence found in your resume.</p>
+          </section>
+          <section className="evidence-map" aria-label="Job requirement evidence">
+            {details.requirementEvidence.map((item) => (
+              <article className={`evidence-row evidence-${item.status}`} key={item.requirement}>
+                <div className="evidence-requirement">
+                  <span className="evidence-status">{item.status}</span>
+                  <h3>{item.requirement}</h3>
+                  <div aria-label={`${item.score} percent evidence strength`}><i style={{ width: `${item.score}%` }} /></div>
+                </div>
+                <div className="evidence-proof">
+                  <strong>{item.evidence.length ? "Resume evidence" : "Evidence not found"}</strong>
+                  {item.evidence.length
+                    ? item.evidence.map((evidence) => <q key={evidence}>{evidence}</q>)
+                    : <p>Your resume does not directly demonstrate this requirement.</p>}
+                </div>
+                <div className="evidence-guidance"><strong>How to strengthen it</strong><p>{item.guidance}</p></div>
+              </article>
+            ))}
+          </section>
+        </>
+      )}
+
+      {details.bulletInsights.length > 0 && (
+        <>
+          <section className="report-section-heading">
+            <div><p className="eyebrow">Bullet-level coaching</p><h2>Strengthen every achievement</h2></div>
+            <p>Individual bullets scored for ownership, specificity, proof, outcome and readability.</p>
+          </section>
+          <section className="bullet-coaching">
+            {details.bulletInsights.map((bullet, index) => (
+              <article className="bullet-card" key={`${bullet.text}-${index}`}>
+                <div className="bullet-score"><strong>{bullet.score}</strong><span>/100</span></div>
+                <div className="bullet-content">
+                  <p className="bullet-original">“{bullet.text}”</p>
+                  <div className="bullet-signals">
+                    {bullet.signals.map((signal) => <span key={signal}>✓ {signal}</span>)}
+                    {!bullet.signals.length && <span className="bullet-signal-risk">No strong impact signals detected</span>}
+                  </div>
+                  <p className="bullet-issue">{bullet.issue}</p>
+                  <div className="bullet-guidance"><strong>Coach’s note</strong><p>{bullet.guidance}</p></div>
+                </div>
+              </article>
+            ))}
+          </section>
+        </>
+      )}
+
+      {details.riskFlags.length > 0 && (
+        <section className="risk-strip" aria-label="Application risk flags">
+          <div><p className="eyebrow">Risk scan</p><h2>What may reduce shortlist confidence</h2></div>
+          <div className="risk-list">
+            {details.riskFlags.map((risk) => <article key={risk.title}><span className={`risk-dot risk-${risk.severity}`} /> <div><strong>{risk.title}</strong><p>{risk.detail}</p></div></article>)}
+          </div>
+        </section>
+      )}
 
       <section className="report-section-heading">
         <div><p className="eyebrow">Executive review</p><h2>What helps—and what holds you back</h2></div>

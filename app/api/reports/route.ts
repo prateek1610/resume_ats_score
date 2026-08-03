@@ -70,6 +70,7 @@ export async function POST(request: Request) {
       recommendations: analysis.recommendations,
       sections: analysis.sections,
       stats: analysis.stats,
+      analysisDetails: analysis.details,
       createdAt: new Date(),
     });
 

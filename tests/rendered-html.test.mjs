@@ -65,4 +65,7 @@ test("returns a complete authenticated sample analysis", async () => {
   assert.equal(payload.analysis.mode, "job_match");
   assert.equal(typeof payload.analysis.overallScore, "number");
   assert.ok(payload.analysis.recommendations.length > 0);
+  assert.match(payload.analysis.details.targetRole, /Operations Analyst/i);
+  assert.ok(payload.analysis.details.requirementEvidence.length > 0);
+  assert.ok(payload.analysis.details.bulletInsights.length > 0);
 });

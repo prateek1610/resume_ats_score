@@ -23,6 +23,7 @@ export const resumeReports = sqliteTable(
     recommendations: text("recommendations", { mode: "json" }).$type<Recommendation[]>().notNull(),
     sections: text("sections", { mode: "json" }).$type<ResumeAnalysis["sections"]>().notNull(),
     stats: text("stats", { mode: "json" }).$type<ResumeAnalysis["stats"]>().notNull(),
+    analysisDetails: text("analysis_details", { mode: "json" }).$type<ResumeAnalysis["details"]>(),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   },
   (table) => [

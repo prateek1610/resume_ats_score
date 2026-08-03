@@ -19,6 +19,39 @@ export type SectionInsight = {
   checks: string[];
 };
 
+export type RequirementEvidence = {
+  requirement: string;
+  status: "supported" | "partial" | "missing";
+  score: number;
+  evidence: string[];
+  guidance: string;
+};
+
+export type BulletInsight = {
+  text: string;
+  score: number;
+  signals: string[];
+  issue: string;
+  guidance: string;
+};
+
+export type RiskFlag = {
+  severity: "high" | "medium" | "low";
+  title: string;
+  detail: string;
+};
+
+export type DeepAnalysis = {
+  targetRole: string;
+  fitLabel: string;
+  contextSummary: string;
+  strongestEvidence: string;
+  biggestRisk: string;
+  requirementEvidence: RequirementEvidence[];
+  bulletInsights: BulletInsight[];
+  riskFlags: RiskFlag[];
+};
+
 export type ResumeAnalysis = {
   mode: AnalysisMode;
   overallScore: number;
@@ -31,6 +64,7 @@ export type ResumeAnalysis = {
   strengths: string[];
   recommendations: Recommendation[];
   sections: SectionInsight[];
+  details: DeepAnalysis;
   stats: {
     wordCount: number;
     bulletCount: number;
@@ -74,6 +108,25 @@ const COMMON_SKILLS = [
   "project management", "python", "react", "salesforce", "sql", "tableau",
   "typescript", "user research", "troubleshooting", "ticketing", "service desk",
 ];
+
+const REQUIREMENT_CONCEPTS = [
+  { label: "Data analysis", aliases: ["data analysis", "analyzing data", "analytics", "data insights", "identify trends"] },
+  { label: "Excel", aliases: ["excel", "spreadsheets", "pivot tables", "vlookup", "xlookup"] },
+  { label: "SQL", aliases: ["sql", "mysql", "postgresql", "database queries"] },
+  { label: "Power BI", aliases: ["power bi", "powerbi", "dax"] },
+  { label: "Reporting & dashboards", aliases: ["reporting", "reports", "dashboard", "dashboards", "visualization"] },
+  { label: "Customer service", aliases: ["customer service", "customer support", "client support", "customer experience", "csat"] },
+  { label: "Stakeholder management", aliases: ["stakeholder management", "stakeholders", "department leads", "executive communication"] },
+  { label: "Project management", aliases: ["project management", "project delivery", "project planning", "project coordination"] },
+  { label: "Process improvement", aliases: ["process improvement", "workflow improvement", "optimized", "streamlined", "continuous improvement"] },
+  { label: "Cross-functional communication", aliases: ["cross-functional", "cross functional", "communication", "presenting recommendations", "collaboration"] },
+  { label: "Leadership", aliases: ["leadership", "led", "managed", "mentored", "trained", "team lead"] },
+  { label: "Technical support", aliases: ["technical support", "troubleshooting", "service desk", "help desk", "incident management"] },
+  { label: "Ticketing systems", aliases: ["ticketing", "tickets", "jira", "zendesk", "servicenow", "freshdesk"] },
+  { label: "Sales & account growth", aliases: ["sales", "account management", "revenue", "pipeline", "client retention"] },
+  { label: "Product management", aliases: ["product management", "product strategy", "roadmap", "user research", "product discovery"] },
+  { label: "Software development", aliases: ["software development", "javascript", "typescript", "react", "node.js", "python", "git"] },
+] as const;
 
 const SECTION_DEFINITIONS = [
   { name: "Summary", pattern: /^(?:professional\s+)?(?:summary|profile|objective)$/i },
@@ -127,6 +180,109 @@ function getSectionBlocks(text: string) {
   return blocks;
 }
 
+function cleanLine(line: string) {
+  return line.replace(/^\s*(?:[-•▪◦*]|\d+[.)])\s+/, "").replace(/\s+/g, " ").trim();
+}
+
+function includesPhrase(text: string, phrase: string) {
+  return text.toLowerCase().includes(phrase.toLowerCase());
+}
+
+function extractTargetRole(jobDescription: string) {
+  const compact = jobDescription.replace(/\s+/g, " ").trim();
+  if (!compact) return "General ATS readiness";
+  const patterns = [
+    /(?:hiring|seeking|looking for)\s+(?:an?\s+)?([a-z][a-z /&-]{2,45}?)(?:\s+to\b|\s+who\b|[.,;])/i,
+    /(?:role|position|title)\s*[:–-]\s*([a-z][a-z /&-]{2,45})(?:[.,;]|$)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = compact.match(pattern)?.[1]?.trim();
+    if (match) return match.replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+  return "Target role";
+}
+
+function evidenceLines(resumeText: string) {
+  return resumeText
+    .split("\n")
+    .map(cleanLine)
+    .filter((line) => line.length >= 18 && line.length <= 260);
+}
+
+function analyzeRequirements(resumeText: string, jobDescription: string): RequirementEvidence[] {
+  if (!jobDescription.trim()) return [];
+  const lowerJob = jobDescription.toLowerCase();
+  const lowerResume = resumeText.toLowerCase();
+  const lines = evidenceLines(resumeText);
+  const concepts = REQUIREMENT_CONCEPTS
+    .filter((concept) => concept.aliases.some((alias) => lowerJob.includes(alias)))
+    .sort((a, b) => {
+      const firstA = Math.min(...a.aliases.map((alias) => lowerJob.indexOf(alias)).filter((index) => index >= 0));
+      const firstB = Math.min(...b.aliases.map((alias) => lowerJob.indexOf(alias)).filter((index) => index >= 0));
+      return firstA - firstB;
+    })
+    .slice(0, 10);
+
+  return concepts.map((concept) => {
+    const exactAliases = concept.aliases.filter((alias) => lowerResume.includes(alias));
+    const jdAliases = concept.aliases.filter((alias) => lowerJob.includes(alias));
+    const usefulTokens = [...new Set(jdAliases.flatMap((alias) => alias.split(/\s+/)).filter((word) => word.length >= 5 && !STOP_WORDS.has(word)))];
+    const partialTokens = usefulTokens.filter((token) => lowerResume.includes(token));
+    const exactLines = lines.filter((line) => exactAliases.some((alias) => includesPhrase(line, alias)));
+    const partialLines = lines.filter((line) => partialTokens.some((token) => includesPhrase(line, token)));
+    const matchedLines = (exactLines.length ? exactLines : partialLines).slice(0, 2);
+    const substantiveEvidence = exactLines.filter((line) => (line.match(/,/g) ?? []).length < 3);
+    const status: RequirementEvidence["status"] = substantiveEvidence.length
+      ? "supported"
+      : exactAliases.length || (partialTokens.length && matchedLines.length)
+        ? "partial"
+        : "missing";
+    const score = status === "supported" ? Math.min(100, 78 + substantiveEvidence.length * 10) : status === "partial" ? (exactAliases.length ? 55 : 42) : 12;
+    const guidance = status === "supported"
+      ? `Keep this evidence prominent and connect it to a measurable ${concept.label.toLowerCase()} outcome.`
+      : status === "partial"
+        ? `The resume hints at this capability, but does not prove it directly. Name the ${concept.label.toLowerCase()} work, tool or outcome you genuinely delivered.`
+        : `No credible evidence was found. If you have this experience, add one achievement showing how you used ${concept.label.toLowerCase()} and what changed.`;
+    return { requirement: concept.label, status, score, evidence: matchedLines, guidance };
+  });
+}
+
+function analyzeBullets(resumeText: string): BulletInsight[] {
+  const bulletLines = resumeText.split("\n").filter((line) => /^\s*(?:[-•▪◦*]|\d+[.)])\s+/.test(line));
+  return bulletLines.slice(0, 8).map((line) => {
+    const text = cleanLine(line);
+    const lower = text.toLowerCase();
+    const words = text.match(/[\p{L}\p{N}][\p{L}\p{N}'+.-]*/gu) ?? [];
+    const firstWord = words[0]?.toLowerCase() ?? "";
+    const hasAction = ACTION_VERBS.includes(firstWord);
+    const hasMetric = /\b\d+(?:\.\d+)?(?:\s?%|\+|x|k|m|million|thousand)?\b/i.test(text);
+    const hasOutcome = /\b(?:by|resulting in|leading to|so that|which|improved|increased|reduced|saved|grew|accelerated|achieved)\b/i.test(text);
+    const hasSpecificity = hasMetric || COMMON_SKILLS.some((skill) => lower.includes(skill)) || REQUIREMENT_CONCEPTS.some((concept) => concept.aliases.some((alias) => lower.includes(alias)));
+    const hasWeakLanguage = WEAK_PHRASES.some((phrase) => lower.includes(phrase));
+    const readable = words.length >= 8 && words.length <= 30;
+    const score = clamp(10 + (hasAction ? 25 : 0) + (hasMetric ? 25 : 0) + (hasOutcome ? 20 : 0) + (hasSpecificity ? 12 : 0) + (readable ? 8 : 0) - (hasWeakLanguage ? 15 : 0));
+    const signals = [hasAction && "Strong opening verb", hasMetric && "Quantified", hasOutcome && "Outcome stated", hasSpecificity && "Specific context", readable && "Easy to scan"].filter(Boolean) as string[];
+    const missing = [!hasAction && "a decisive opening verb", !hasSpecificity && "specific scope or tools", !hasMetric && "a measurable result", !hasOutcome && "the business or customer outcome"].filter(Boolean) as string[];
+    const issue = missing.length ? `Missing ${missing.slice(0, 2).join(" and ")}.` : "This bullet clearly shows ownership, scope and impact.";
+    const guidance = score >= 80
+      ? "Keep this high-value bullet near the top of the relevant role."
+      : `Rewrite as: “${hasAction ? firstWord.charAt(0).toUpperCase() + firstWord.slice(1) : "Improved"} [specific task or process] for [scope]${hasMetric ? "" : " by [X%/time/cost]"}, resulting in [business or customer outcome].”`;
+    return { text, score, signals, issue, guidance };
+  });
+}
+
+function buildRiskFlags(args: { weakPhraseCount: number; firstPersonCount: number; longBulletCount: number; metricCount: number; bulletCount: number; missingSections: string[]; requirements: RequirementEvidence[] }): RiskFlag[] {
+  const flags: RiskFlag[] = [];
+  const missingRequirements = args.requirements.filter((item) => item.status === "missing");
+  if (missingRequirements.length >= 3) flags.push({ severity: "high", title: "Role evidence gap", detail: `${missingRequirements.length} important job requirements have no direct resume evidence.` });
+  if (args.missingSections.length) flags.push({ severity: "high", title: "ATS parsing risk", detail: `Standard sections missing: ${args.missingSections.join(", ")}.` });
+  if (args.metricCount < Math.max(2, Math.ceil(args.bulletCount / 3))) flags.push({ severity: "medium", title: "Low proof density", detail: "Most experience bullets describe work without proving scale or results." });
+  if (args.weakPhraseCount) flags.push({ severity: "medium", title: "Passive positioning", detail: `${args.weakPhraseCount} generic responsibility phrase${args.weakPhraseCount === 1 ? "" : "s"} weaken ownership.` });
+  if (args.longBulletCount) flags.push({ severity: "medium", title: "Recruiter scan friction", detail: `${args.longBulletCount} bullet${args.longBulletCount === 1 ? " is" : "s are"} too dense for a fast first read.` });
+  if (args.firstPersonCount) flags.push({ severity: "low", title: "Resume convention", detail: `Remove ${args.firstPersonCount} first-person pronoun${args.firstPersonCount === 1 ? "" : "s"}.` });
+  return flags.slice(0, 5);
+}
+
 function statusFor(score: number, present: boolean): SectionInsight["status"] {
   if (!present) return "missing";
   return score >= 75 ? "strong" : "improve";
@@ -169,9 +325,13 @@ export function analyzeResume(resumeText: string, jobDescription = ""): ResumeAn
     ? targetKeywords.filter((term) => !lower.includes(term)).slice(0, 12)
     : [];
   const keywordCoverage = matchedKeywords.length / Math.max(targetKeywords.length, 1);
+  const requirementEvidence = analyzeRequirements(cleanResume, jobDescription);
+  const semanticCoverage = requirementEvidence.length
+    ? requirementEvidence.reduce((total, item) => total + item.score, 0) / requirementEvidence.length
+    : keywordCoverage * 100;
 
   const keywordScore = mode === "job_match"
-    ? clamp(keywordCoverage * 100)
+    ? clamp(semanticCoverage * 0.7 + keywordCoverage * 100 * 0.3)
     : clamp(35 + matchedKeywords.length * 7 + (sectionBlocks.has("Skills") ? 20 : 0));
 
   let structurePoints = 0;
@@ -371,6 +531,34 @@ export function analyzeResume(resumeText: string, jobDescription = ""): ResumeAn
   if (bulletCount >= 4 && longBulletCount === 0) strengths.push(`Your ${bulletCount} experience bullets are concise and recruiter-friendly.`);
   if (!strengths.length) strengths.push("Your resume has a usable foundation; the priority actions below will make the biggest difference.");
 
+  const bulletInsights = analyzeBullets(cleanResume);
+  const riskFlags = buildRiskFlags({
+    weakPhraseCount,
+    firstPersonCount,
+    longBulletCount,
+    metricCount,
+    bulletCount,
+    missingSections,
+    requirements: requirementEvidence,
+  });
+  const supportedRequirements = requirementEvidence.filter((item) => item.status === "supported");
+  const partialRequirements = requirementEvidence.filter((item) => item.status === "partial");
+  const missingRequirementEvidence = requirementEvidence.filter((item) => item.status === "missing");
+  const strongestRequirement = [...supportedRequirements].sort((a, b) => b.score - a.score)[0];
+  const strongestBullet = [...bulletInsights].sort((a, b) => b.score - a.score)[0];
+  const targetRole = extractTargetRole(jobDescription);
+  const fitLabel = mode === "standalone"
+    ? overallScore >= 75 ? "Strong ATS foundation" : overallScore >= 55 ? "Developing ATS foundation" : "Foundational rewrite needed"
+    : keywordScore >= 75 ? "Strong contextual fit" : keywordScore >= 55 ? "Moderate contextual fit" : "Limited evidence for this role";
+  const contextSummary = mode === "job_match"
+    ? `${supportedRequirements.length} of ${requirementEvidence.length || matchedKeywords.length} priority requirements have direct evidence${partialRequirements.length ? `, with ${partialRequirements.length} more only partially demonstrated` : ""}. ${missingRequirementEvidence.length ? `The main application risk is ${missingRequirementEvidence.slice(0, 2).map((item) => item.requirement).join(" and ")}.` : "The resume covers the core role language; improve proof and specificity next."}`
+    : `This review measures ATS readability and evidence quality without a job description. Add a target job description for requirement-by-requirement role matching.`;
+  const strongestEvidence = strongestRequirement?.evidence[0]
+    ?? strongestBullet?.text
+    ?? strengths[0];
+  const biggestRisk = riskFlags[0]?.detail
+    ?? (mode === "job_match" && missingKeywords.length ? `Role language is missing around ${missingKeywords.slice(0, 3).join(", ")}.` : "No critical ATS risk was detected; continue tailoring for each application.");
+
   return {
     mode,
     overallScore,
@@ -383,6 +571,16 @@ export function analyzeResume(resumeText: string, jobDescription = ""): ResumeAn
     strengths: strengths.slice(0, 6),
     recommendations: recommendations.slice(0, 8),
     sections,
+    details: {
+      targetRole,
+      fitLabel,
+      contextSummary,
+      strongestEvidence,
+      biggestRisk,
+      requirementEvidence,
+      bulletInsights,
+      riskFlags,
+    },
     stats: {
       wordCount: words.length,
       bulletCount,
