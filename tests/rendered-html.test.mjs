@@ -43,12 +43,15 @@ test("renders the ResumeLens landing journey", async () => {
   );
   const html = await response.text();
   assert.equal(response.status, 200);
-  assert.match(html, /Know what recruiters/);
-  assert.match(html, /Upload resume/);
+  assert.match(html, /See what your resume proves/);
+  assert.match(html, /Analyze my resume/);
+  assert.match(html, /7 dimensions/);
+  assert.match(html, /Line-level/);
+  assert.match(html, /Preview a full report/);
   assert.match(html, /\/login\?return_to=%2Fdashboard/);
   assert.match(html, /Create account/);
   assert.match(html, /10 free analyses\/day/);
-  assert.match(html, /30-day retention/);
+  assert.match(html, /retained for 30 days/);
   assert.match(html, /href="\/privacy"/);
   assert.match(html, /href="\/terms"/);
   assert.match(response.headers.get("content-security-policy") ?? "", /default-src 'self'/);
