@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { chatGPTSignInPath, getChatGPTUser, type ChatGPTUser } from "@/app/chatgpt-auth";
+import { getChatGPTUser, type ChatGPTUser } from "@/app/chatgpt-auth";
+import { resumeLensLoginPath } from "@/lib/auth-paths";
 
 const previewUser: ChatGPTUser = {
   displayName: "Preview User",
@@ -15,6 +16,6 @@ export async function getAppUser() {
 
 export async function requireAppUser(returnTo: string) {
   const user = await getAppUser();
-  if (!user) redirect(chatGPTSignInPath(returnTo));
+  if (!user) redirect(resumeLensLoginPath(returnTo));
   return user;
 }

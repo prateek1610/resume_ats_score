@@ -6,6 +6,8 @@ ResumeLens is a production-ready ATS resume review web application. Signed-in us
 
 - Standalone ATS readiness and job-description match modes
 - Deterministic, explainable scores for keywords, structure, impact, and essentials
+- Deep resume diagnostics covering section health, measurable outcomes, action language, weak phrases, pronouns, bullet readability, and role-specific keyword coverage
+- Recruiter-style strengths, improvement points, section-by-section feedback, prioritized fixes, and concrete rewrite examples
 - PDF and DOCX text extraction with file-size, type, page, and processing limits
 - Sign in with ChatGPT and server-side ownership checks
 - Private original-resume storage in R2 and report metadata/history in D1
@@ -13,6 +15,10 @@ ResumeLens is a production-ready ATS resume review web application. Signed-in us
 - Sample report journey that does not consume storage
 - Responsive dark data-product interface with keyboard focus and reduced-motion support
 - Input validation, structured error responses, rollback on partial upload failure, and basic structured logging
+- Persistent per-user/IP burst protection and a 10-analysis rolling daily quota
+- Content-signature validation, same-origin mutation checks, security headers, bounded client/server timeouts, and safe public error messages
+- 30-day retention for new reports, opportunistic expired-file cleanup, individual deletion, and complete account-data deletion
+- Public Privacy Policy and Terms of Use plus a database-aware health endpoint
 
 ResumeLens is guidance software, not an employer ATS emulator. Scores can differ across hiring systems and do not guarantee an interview or job offer.
 
@@ -37,6 +43,8 @@ ResumeLens is guidance software, not an employer ATS emulator. Scores can differ
 3. `POST /api/reports` validates and parses the file, runs the deterministic scoring engine, uploads the original file to private R2, and writes the owned report to D1.
 4. Protected report and download routes always query by both report ID and authenticated email.
 5. Deleting a report removes its D1 record and associated R2 object.
+6. New reports receive a 30-day expiry; expired rows are hidden immediately and cleaned from D1/R2 during normal service activity.
+7. Public traffic is protected by persistent burst windows and a rolling 24-hour free-plan quota.
 
 Important directories:
 
@@ -121,6 +129,8 @@ Run `npm run build` for a local production validation. Deploy through the Sites 
 - Every report, delete, and download lookup includes the authenticated owner email.
 - User strings are rendered as text; raw resume or job-description HTML is never injected.
 - The application has no third-party AI/API dependency and does not send resume content to an external model.
+- Browser mutation requests are restricted to same-origin traffic, and unexpected infrastructure errors are never returned verbatim.
+- Public access exposes the landing and legal pages; dashboard, report, download, deletion, and analysis routes still require authenticated identity.
 
 ## License
 

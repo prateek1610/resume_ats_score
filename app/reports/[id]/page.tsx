@@ -27,6 +27,24 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     strengths: report.strengths,
     recommendations: report.recommendations,
     sections: report.sections,
+    details: report.analysisDetails ?? {
+      targetRole: report.mode === "job_match" ? "Target role" : "General ATS readiness",
+      resumeProfile: "General professional experience",
+      roleFitScore: report.keywordScore,
+      roleFitVerdict: "Saved ATS review",
+      fitLabel: "Saved ATS review",
+      contextSummary: report.mode === "job_match"
+        ? "This report predates contextual requirement mapping. Re-upload the resume to generate the deeper evidence review."
+        : "This report measures ATS readability without a supplied job description.",
+      strongestEvidence: report.strengths[0] ?? "No strong evidence summary is available for this earlier report.",
+      biggestRisk: report.recommendations[0]?.detail ?? "No critical risk was recorded.",
+      requirementEvidence: [],
+      mismatches: [],
+      transferableStrengths: [],
+      bulletInsights: [],
+      riskFlags: [],
+      resumeReview: { dimensions: [], strengths: [], areasToImprove: [], suggestedRewrites: [], suggestedAdditions: [], missingElements: [] },
+    },
     stats: report.stats,
   };
 
@@ -38,7 +56,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
       </header>
       <div className="report-wrap">
         <div className="report-toolbar">
-          <div><Link className="back-link" href="/dashboard">← All reports</Link><p className="eyebrow">Saved ATS report</p><h1>{report.filename}</h1><p>{report.mode === "job_match" ? "Job-description match" : "Standalone review"} · {report.createdAt.toLocaleDateString()}</p></div>
+          <div><Link className="back-link" href="/dashboard">← All reports</Link><p className="eyebrow">Saved ATS report</p><h1>{report.filename}</h1><p>{report.mode === "job_match" ? "Job-description match" : "Standalone review"} · {report.createdAt.toLocaleDateString()}{report.expiresAt ? ` · available until ${report.expiresAt.toLocaleDateString()}` : ""}</p></div>
           <div className="report-actions"><a href={`/api/resumes/${report.id}`}>Download resume</a><DeleteReportButton reportId={report.id} /></div>
         </div>
         <AnalysisView analysis={analysis} />

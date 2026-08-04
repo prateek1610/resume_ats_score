@@ -21,6 +21,21 @@ export function validateResumeFile(file: File) {
   return null;
 }
 
+export async function validateResumeFileSignature(file: File) {
+  const extension = getFileExtension(file.name);
+  const bytes = new Uint8Array(await file.slice(0, 1024).arrayBuffer());
+  if (extension === "pdf") {
+    const header = new TextDecoder("latin1").decode(bytes.slice(0, 16));
+    if (!header.includes("%PDF-")) return "The PDF signature is invalid or the file is not a real PDF.";
+  }
+  if (extension === "docx") {
+    if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b || bytes[2] !== 0x03 || bytes[3] !== 0x04) {
+      return "The DOCX signature is invalid or the file is not a real DOCX document.";
+    }
+  }
+  return null;
+}
+
 function normalizeExtractedText(text: string) {
   return text
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
@@ -44,6 +59,15 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
   }
 }
 
+async function disposePdf(pdf: unknown) {
+  const loadingTask = (pdf as {
+    loadingTask?: { destroy?: () => Promise<void> };
+  }).loadingTask;
+  if (typeof loadingTask?.destroy === "function") {
+    await loadingTask.destroy();
+  }
+}
+
 export async function extractResumeText(file: File) {
   const extension = getFileExtension(file.name);
   const data = await file.arrayBuffer();
@@ -54,16 +78,25 @@ export async function extractResumeText(file: File) {
       getDocumentProxy(new Uint8Array(data), { maxImageSize: 16_777_216 }),
       6_000,
     );
-    if (pdf.numPages > 15) {
-      await (pdf as unknown as { destroy(): Promise<void> }).destroy();
-      throw new Error("PDF resumes are limited to 15 pages.");
+    try {
+      if (pdf.numPages > 15) {
+        throw new Error("PDF resumes are limited to 15 pages.");
+      }
+      const extracted = await withTimeout(extractText(pdf, { mergePages: true }), 8_000);
+      text = extracted.text;
+    } finally {
+      await disposePdf(pdf);
     }
-    const extracted = await withTimeout(extractText(pdf, { mergePages: true }), 8_000);
-    text = extracted.text;
-    await (pdf as unknown as { destroy(): Promise<void> }).destroy();
   } else if (extension === "docx") {
     const mammoth = await import("mammoth");
-    const extracted = await withTimeout(mammoth.extractRawText({ arrayBuffer: data }), 8_000);
+    // The server bundle resolves Mammoth's Node entrypoint, whose unzip layer
+    // expects the binary under `buffer` (the browser entrypoint uses
+    // `arrayBuffer`). An ArrayBuffer is accepted by JSZip at runtime, so keep
+    // the bytes zero-copy and expose them under the key used by this bundle.
+    const extracted = await withTimeout(
+      mammoth.extractRawText({ buffer: data as unknown as Buffer }),
+      8_000,
+    );
     text = extracted.value;
   }
 
