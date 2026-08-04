@@ -10,6 +10,9 @@
   --panel: #111a33;
   --border: #2b315a;
   --track: #1c2a48;
+  --card-body: 0.9375rem;
+  --card-secondary: 0.875rem;
+  --card-label: 0.75rem;
 }
 
 * { box-sizing: border-box; }
@@ -634,6 +637,130 @@ footer .brand-mark::before { width: 0.95rem; height: 0.95rem; }
 .technical-audit > summary span { color: var(--muted); font-size: 0.65rem; font-weight: 500; }
 .technical-audit > section { margin: 0 1rem 1rem; }
 .technical-audit[open] > summary { border-bottom: 1px solid rgba(75, 91, 137, 0.28); }
+
+/* Keep dense dashboard and report cards readable at default browser zoom. */
+.analysis-deliverables span,
+.analysis-mode-card strong,
+.production-policy strong,
+.history-list strong,
+.account-data-panel h3,
+.requirement-card h3,
+.dimension-card header > span,
+.checklist-table strong {
+  font-size: var(--card-body);
+}
+
+.score-card-badge span,
+.score-card-badge small {
+  font-size: var(--card-label);
+}
+
+.insight-card small {
+  font-size: var(--card-secondary);
+}
+
+.auth-benefits p,
+.auth-card-copy,
+.auth-security-note p,
+.analysis-mode-card p,
+.production-policy span,
+.production-policy a,
+.account-data-panel > div > p:last-child,
+.context-role p,
+.context-evidence p,
+.evidence-proof q,
+.evidence-proof p,
+.evidence-guidance p,
+.bullet-guidance p,
+.risk-list p,
+.section-audit-card > p,
+.section-audit-card li,
+.action-evidence span,
+.report-reading-guide,
+.chapter-heading div > p:last-child,
+.overview-context > p:last-child,
+.overview-insight blockquote,
+.overview-insight div > p:last-child,
+.fit-summary span,
+.role-fit-copy > p:last-child,
+.transferable-box ul,
+.transferable-box p,
+.mismatch-main p,
+.mismatch-action p,
+.match-complete p,
+.requirement-body q,
+.requirement-body p,
+.keyword-drawer summary span,
+.subsection-heading small,
+.bullet-review summary p,
+.dimension-card p,
+.review-section-heading div > p:last-child,
+.cited-strength-grid article > p,
+.improvement-source blockquote,
+.improvement-advice p,
+.rewrite-card footer p,
+.addition-grid blockquote,
+.addition-grid article > p,
+.checklist-table p,
+.technical-audit > summary span {
+  font-size: var(--card-secondary);
+}
+
+.analysis-deliverables b,
+.workflow-step-heading small,
+.workflow-step-label small,
+.field-label > em,
+.form-meta,
+.account-data-panel > button,
+.account-delete-confirm label,
+.account-delete-confirm button,
+.context-panel span,
+.context-role > strong,
+.evidence-status,
+.evidence-proof strong,
+.evidence-guidance strong,
+.bullet-score span,
+.bullet-signals span,
+.bullet-guidance strong,
+.risk-list strong,
+.priority,
+.section-audit-top small,
+.section-state,
+.action-category,
+.action-evidence strong,
+.resume-stats span,
+.diagnostics-grid span,
+.report-jump-nav span,
+.report-reading-guide b,
+.overview-context > span,
+.role-fit-score > span,
+.role-fit-score small,
+.transferable-box > span,
+.mismatch-main > div span,
+.mismatch-main small,
+.mismatch-action strong,
+.requirement-card header span,
+.requirement-card header div > small,
+.requirement-body b,
+.subsection-heading > span,
+.dimension-card header small,
+.review-meta > span:not(.priority),
+.review-meta small,
+.improvement-index,
+.improvement-advice strong,
+.rewrite-card > header span,
+.rewrite-card > header small,
+.rewrite-comparison b,
+.rewrite-card footer strong,
+.addition-grid article > div span,
+.checklist-table em {
+  font-size: var(--card-label);
+}
+
+.cited-strength-grid blockquote,
+.rewrite-comparison p {
+  font-size: var(--card-body);
+}
 
 :focus-visible { outline: 2px solid var(--mint); outline-offset: 4px; border-radius: 5px; }
 
