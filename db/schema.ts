@@ -25,8 +25,22 @@ export const resumeReports = sqliteTable(
     stats: text("stats", { mode: "json" }).$type<ResumeAnalysis["stats"]>().notNull(),
     analysisDetails: text("analysis_details", { mode: "json" }).$type<ResumeAnalysis["details"]>(),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
   },
   (table) => [
     index("resume_reports_owner_created_idx").on(table.ownerEmail, table.createdAt),
+    index("resume_reports_expires_idx").on(table.expiresAt),
   ],
+);
+
+export const rateLimitWindows = sqliteTable(
+  "rate_limit_windows",
+  {
+    key: text("key").primaryKey(),
+    scope: text("scope").notNull(),
+    windowStart: integer("window_start", { mode: "timestamp_ms" }).notNull(),
+    requestCount: integer("request_count").notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("rate_limit_windows_updated_idx").on(table.updatedAt)],
 );

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { AnalysisView } from "@/components/analysis-view";
 import type { ResumeAnalysis } from "@/lib/scoring";
+import { AccountDataControls } from "./account-data-controls";
 
 type HistoryItem = {
   id: string;
@@ -13,11 +14,12 @@ type HistoryItem = {
   structureScore: number;
   impactScore: number;
   createdAt: string;
+  expiresAt: string | null;
 };
 
-type Props = { history: HistoryItem[]; sampleMode: boolean };
+type Props = { history: HistoryItem[]; sampleMode: boolean; quota: { used: number | null; limit: number; retentionDays: number }; signOutHref: string };
 
-export function DashboardClient({ history, sampleMode }: Props) {
+export function DashboardClient({ history, sampleMode, quota, signOutHref }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [jobDescription, setJobDescription] = useState("");
@@ -36,14 +38,18 @@ export function DashboardClient({ history, sampleMode }: Props) {
     const form = new FormData();
     form.set("resume", file);
     form.set("jobDescription", jobDescription);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 30_000);
     try {
-      const response = await fetch("/api/reports", { method: "POST", body: form });
+      const response = await fetch("/api/reports", { method: "POST", body: form, signal: controller.signal });
       const payload = await response.json() as { error?: string; report?: { id: string } };
       if (!response.ok || !payload.report) throw new Error(payload.error ?? "Analysis failed.");
       window.location.assign(`/reports/${payload.report.id}`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Analysis failed. Please retry.");
+      setError(cause instanceof DOMException && cause.name === "AbortError" ? "The analysis took too long. Please retry with a smaller text-based file." : cause instanceof Error ? cause.message : "Analysis failed. Please retry.");
       setLoading(false);
+    } finally {
+      window.clearTimeout(timeout);
     }
   }
 
@@ -69,6 +75,12 @@ export function DashboardClient({ history, sampleMode }: Props) {
           <p className="eyebrow">New analysis</p>
           <h1>Check your resume.</h1>
           <p className="dashboard-lead">Get a standalone ATS review or add a job description for a targeted match score.</p>
+
+          <div className="production-policy" aria-label="Free plan usage and retention">
+            <span><strong>{quota.used === null ? "—" : Math.max(0, quota.limit - quota.used)}</strong> analyses remaining</span>
+            <span><strong>{quota.retentionDays} days</strong> private retention</span>
+            <a href="/privacy">How your data is handled</a>
+          </div>
 
           {sampleMode && (
             <div className="sample-banner">
@@ -124,7 +136,7 @@ export function DashboardClient({ history, sampleMode }: Props) {
               {history.map((report) => (
                 <a href={`/reports/${report.id}`} key={report.id}>
                   <span className={`history-score ${report.overallScore >= 75 ? "score-good" : ""}`}>{report.overallScore}</span>
-                  <span><strong>{report.filename}</strong><small>{report.mode === "job_match" ? "Job match" : "Standalone"} · {new Date(report.createdAt).toLocaleDateString()}</small></span>
+                  <span><strong>{report.filename}</strong><small>{report.mode === "job_match" ? "Job match" : "Standalone"} · {new Date(report.createdAt).toLocaleDateString()}{report.expiresAt ? ` · expires ${new Date(report.expiresAt).toLocaleDateString()}` : ""}</small></span>
                   <em aria-hidden="true">›</em>
                 </a>
               ))}
@@ -132,6 +144,7 @@ export function DashboardClient({ history, sampleMode }: Props) {
           ) : (
             <div className="history-empty"><span aria-hidden="true">◎</span><h3>No reports yet</h3><p>Your saved ATS analyses will appear here.</p></div>
           )}
+          <AccountDataControls signOutHref={signOutHref} />
         </aside>
       </div>
 

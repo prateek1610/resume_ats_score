@@ -21,6 +21,21 @@ export function validateResumeFile(file: File) {
   return null;
 }
 
+export async function validateResumeFileSignature(file: File) {
+  const extension = getFileExtension(file.name);
+  const bytes = new Uint8Array(await file.slice(0, 1024).arrayBuffer());
+  if (extension === "pdf") {
+    const header = new TextDecoder("latin1").decode(bytes.slice(0, 16));
+    if (!header.includes("%PDF-")) return "The PDF signature is invalid or the file is not a real PDF.";
+  }
+  if (extension === "docx") {
+    if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b || bytes[2] !== 0x03 || bytes[3] !== 0x04) {
+      return "The DOCX signature is invalid or the file is not a real DOCX document.";
+    }
+  }
+  return null;
+}
+
 function normalizeExtractedText(text: string) {
   return text
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")

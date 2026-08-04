@@ -95,8 +95,8 @@ export default async function Home() {
           <p className="eyebrow">Resume intelligence</p>
           <h1>Know what recruiters’ systems see.</h1>
           <p className="hero-description">
-            Upload your resume. Add a job description for a match score—or run
-            a fast standalone check.
+            Upload your resume for a deep ATS review, or add a job description
+            to see role relevance, evidence gaps and line-level rewrites.
           </p>
           <div className="hero-actions">
             <a className="button button-primary" href={dashboardHref}>
@@ -107,14 +107,14 @@ export default async function Home() {
               Try with sample
             </a>
           </div>
-          <p className="trust-line">PDF or DOCX <span>•</span> Private and secure</p>
+          <p className="trust-line">10 free analyses/day <span>•</span> Private files <span>•</span> 30-day retention</p>
         </div>
         <ScoreCard />
       </section>
 
       <section className="proof-strip" aria-label="Product highlights">
         <span><strong>2 modes</strong> Resume or job match</span>
-        <span><strong>10 MB</strong> Secure file uploads</span>
+        <span><strong>10/day</strong> Free public beta</span>
         <span><strong>Actionable</strong> Prioritized fixes</span>
         <span><strong>Saved</strong> Reports and history</span>
       </section>
@@ -163,8 +163,8 @@ export default async function Home() {
           <h2>Your career data stays yours.</h2>
         </div>
         <div className="privacy-copy">
-          <p>Reports and original resumes are saved only to your signed-in account, so you can revisit them later.</p>
-          <p>Every data request is authorized on the server, files are private, and you can permanently delete a resume and its report at any time.</p>
+          <p>Reports and original resumes are saved only to your signed-in account. New uploads are retained for 30 days.</p>
+          <p>Every data request is authorized on the server, files are private, and you can permanently delete one report or all account-associated data at any time.</p>
         </div>
       </section>
 
@@ -177,7 +177,7 @@ export default async function Home() {
       <footer>
         <Brand />
         <p>ATS guidance for better applications—not a hiring guarantee.</p>
-        <span>© 2026 ResumeLens</span>
+        <div className="footer-links"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><span>© 2026 ResumeLens</span></div>
       </footer>
     </main>
   );

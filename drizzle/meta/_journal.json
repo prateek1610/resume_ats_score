@@ -15,6 +15,13 @@
       "when": 1785772022022,
       "tag": "0001_loud_malcolm_colcord",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785817746498,
+      "tag": "0002_petite_starfox",
+      "breakpoints": true
     }
   ]
 }

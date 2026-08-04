@@ -139,6 +139,9 @@ footer { min-height: 120px; padding: 2rem clamp(1.25rem, 4vw, 4rem); display: fl
 footer .brand { color: var(--ink); font-size: 1rem; }
 footer .brand-mark { width: 1.8rem; height: 1.8rem; }
 footer .brand-mark::before { width: 0.95rem; height: 0.95rem; }
+.footer-links { display: flex; align-items: center; gap: 1rem; }
+.footer-links a { color: #b8c6dc; }
+.footer-links a:hover { color: var(--cyan); }
 
 .auth-page { min-height: 100vh; display: grid; grid-template-rows: auto 1fr; background: radial-gradient(circle at 20% 25%, rgba(33, 212, 253, 0.13), transparent 28rem), radial-gradient(circle at 82% 72%, rgba(82, 242, 198, 0.08), transparent 24rem), var(--canvas); }
 .auth-header { min-height: 76px; padding: 0 clamp(1.25rem, 4vw, 3.5rem); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(43, 49, 90, 0.58); background: rgba(8, 11, 26, 0.86); backdrop-filter: blur(16px); }
@@ -210,6 +213,10 @@ footer .brand-mark::before { width: 0.95rem; height: 0.95rem; }
 .spinner { width: 1.05rem; height: 1.05rem; border: 2px solid rgba(5, 20, 27, 0.35); border-top-color: #05141b; border-radius: 50%; animation: spin 750ms linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .privacy-note { margin: 0.85rem 0 0; color: var(--muted); text-align: center; font-size: 0.75rem; }
+.production-policy { margin: 1.1rem 0 1.35rem; padding: 0.75rem; display: grid; grid-template-columns: repeat(2, 1fr) auto; align-items: center; gap: 0.55rem; border: 1px solid rgba(82, 242, 198, 0.2); border-radius: 10px; background: rgba(82, 242, 198, 0.035); }
+.production-policy span { color: var(--muted); font-size: 0.68rem; }
+.production-policy strong { display: block; color: var(--mint); font-size: 0.84rem; }
+.production-policy a { color: var(--cyan); font-size: 0.67rem; font-weight: 700; }
 .history-panel { position: sticky; top: 1.25rem; padding: 1.5rem; }
 .history-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .history-heading h2 { margin: 0; font-size: 1.7rem; letter-spacing: -0.04em; }
@@ -227,6 +234,29 @@ footer .brand-mark::before { width: 0.95rem; height: 0.95rem; }
 .history-empty > span { display: block; color: var(--cyan); font-size: 3rem; }
 .history-empty h3 { margin: 1rem 0 0.4rem; color: var(--ink); }
 .history-empty p { margin: 0; font-size: 0.85rem; }
+.account-data-panel { margin-top: 1.2rem; padding-top: 1.2rem; display: grid; gap: 0.8rem; border-top: 1px solid rgba(75, 91, 137, 0.35); }
+.account-data-panel h3 { margin: 0; font-size: 0.95rem; }
+.account-data-panel > div > p:last-child { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.68rem; line-height: 1.5; }
+.account-data-panel > button { justify-self: start; padding: 0.58rem 0.7rem; color: #ff9baa; border: 1px solid rgba(255, 96, 115, 0.28); border-radius: 8px; background: rgba(255, 96, 115, 0.04); cursor: pointer; font-size: 0.67rem; font-weight: 700; }
+.account-delete-confirm { display: grid; gap: 0.65rem; }
+.account-delete-confirm label { color: #dce6f7; font-size: 0.69rem; }
+.account-delete-confirm input { width: 100%; padding: 0.65rem 0.75rem; color: var(--ink); border: 1px solid var(--border); border-radius: 8px; background: rgba(7, 13, 31, 0.8); }
+.account-delete-confirm > div { display: flex; gap: 0.5rem; }
+.account-delete-confirm button { padding: 0.58rem 0.7rem; color: var(--ink); border: 1px solid var(--border); border-radius: 8px; background: transparent; cursor: pointer; font-size: 0.65rem; }
+.account-delete-confirm .danger-button { color: #ff9baa; border-color: rgba(255, 96, 115, 0.34); }
+.account-delete-confirm button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.legal-page { min-height: 100vh; background: radial-gradient(circle at 15% 10%, rgba(33, 212, 253, 0.08), transparent 28rem), var(--canvas); }
+.legal-header { min-height: 76px; padding: 0 clamp(1.25rem, 4vw, 3.5rem); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(43, 49, 90, 0.58); background: rgba(8, 11, 26, 0.86); }
+.legal-header > a:last-child { color: var(--muted); font-size: 0.78rem; }
+.legal-shell { width: min(840px, calc(100% - 2rem)); margin: 0 auto; padding: clamp(3rem, 7vw, 6rem) 0; }
+.legal-shell h1 { max-width: none; margin-top: 0; font-size: clamp(3rem, 7vw, 5.5rem); }
+.legal-lead { margin: 1rem 0 2.5rem; color: #cbd7eb; font-size: 1.05rem; line-height: 1.7; }
+.legal-shell section { padding: 1.3rem 0; border-top: 1px solid rgba(75, 91, 137, 0.35); }
+.legal-shell section h2 { margin: 0; font-size: 1.12rem; }
+.legal-shell section p { margin: 0.65rem 0 0; color: var(--muted); font-size: 0.82rem; line-height: 1.7; }
+.legal-actions { margin-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.legal-actions a { padding: 0.7rem 0.9rem; color: var(--cyan); border: 1px solid var(--border); border-radius: 8px; font-size: 0.75rem; font-weight: 700; }
 .sample-result { margin-top: 1.25rem; padding: clamp(1.25rem, 3vw, 2.5rem); }
 .sample-result-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 2rem; }
 .sample-result-heading h2 { margin: 0; font-size: 1.55rem; overflow-wrap: anywhere; }
@@ -607,6 +637,8 @@ footer .brand-mark::before { width: 0.95rem; height: 0.95rem; }
   .auth-card { width: min(100%, 580px); }
   .role-fit-verdict { grid-template-columns: auto 1fr; }
   .transferable-box { grid-column: 1 / -1; }
+  .production-policy { grid-template-columns: 1fr 1fr; }
+  .production-policy a { grid-column: 1 / -1; }
   .improvement-list > article { grid-template-columns: auto 1fr; }
   .improvement-advice { grid-column: 2; border-top: 1px solid rgba(75, 91, 137, 0.3); border-left: 0; }
 }
@@ -695,6 +727,8 @@ footer .brand-mark::before { width: 0.95rem; height: 0.95rem; }
   .checklist-table article { align-items: start; grid-template-columns: auto 1fr; }
   .checklist-table em { grid-column: 2; }
   .technical-audit > summary { align-items: flex-start; flex-direction: column; }
+  .footer-links { align-items: flex-start; flex-wrap: wrap; }
+  .account-delete-confirm > div { align-items: stretch; flex-direction: column; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -47,6 +47,61 @@ test("renders the ResumeLens landing journey", async () => {
   assert.match(html, /Upload resume/);
   assert.match(html, /\/login\?return_to=%2Fdashboard/);
   assert.match(html, /Create account/);
+  assert.match(html, /10 free analyses\/day/);
+  assert.match(html, /30-day retention/);
+  assert.match(html, /href="\/privacy"/);
+  assert.match(html, /href="\/terms"/);
+  assert.match(response.headers.get("content-security-policy") ?? "", /default-src 'self'/);
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+});
+
+test("renders public privacy and terms pages", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("legal", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const environment = { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } };
+  const executionContext = { waitUntil() {}, passThroughOnException() {} };
+
+  const privacyResponse = await worker.fetch(
+    new Request("http://localhost/privacy", { headers: { accept: "text/html" } }),
+    environment,
+    executionContext,
+  );
+  const privacyHtml = await privacyResponse.text();
+  assert.equal(privacyResponse.status, 200);
+  assert.match(privacyHtml, /Privacy Policy/);
+  assert.match(privacyHtml, /New reports expire 30 days after creation/);
+  assert.match(privacyHtml, /permanently delete all reports and resume files/);
+
+  const termsResponse = await worker.fetch(
+    new Request("http://localhost/terms", { headers: { accept: "text/html" } }),
+    environment,
+    executionContext,
+  );
+  const termsHtml = await termsResponse.text();
+  assert.equal(termsResponse.status, 200);
+  assert.match(termsHtml, /Terms of Use/);
+  assert.match(termsHtml, /10 saved analyses per rolling 24-hour period/);
+  assert.match(termsHtml, /does not guarantee interviews/);
+});
+
+test("health endpoint fails closed without a database binding", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("health", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const response = await worker.fetch(
+    new Request("http://localhost/api/health"),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  const payload = await response.json();
+  assert.equal(response.status, 503);
+  assert.deepEqual(Object.keys(payload).sort(), ["database", "responseTimeMs", "status"]);
+  assert.equal(payload.status, "degraded");
+  assert.equal(payload.database, "unavailable");
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
 });
 
 test("renders a complete and safe login journey", async () => {

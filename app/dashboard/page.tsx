@@ -1,7 +1,8 @@
 import { chatGPTSignOutPath } from "@/app/chatgpt-auth";
 import Link from "next/link";
 import { requireAppUser } from "@/lib/app-auth";
-import { listReports } from "@/lib/reports";
+import { DAILY_ANALYSIS_LIMIT, REPORT_RETENTION_DAYS } from "@/lib/policy";
+import { countReportsSince, listReports } from "@/lib/reports";
 import { DashboardClient } from "./dashboard-client";
 
 export const dynamic = "force-dynamic";
@@ -10,8 +11,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const user = await requireAppUser("/dashboard");
   const query = await searchParams;
   let reports: Awaited<ReturnType<typeof listReports>> = [];
+  let usedToday: number | null = null;
   try {
-    reports = await listReports(user.email.toLowerCase());
+    [reports, usedToday] = await Promise.all([
+      listReports(user.email.toLowerCase()),
+      countReportsSince(user.email.toLowerCase(), new Date(Date.now() - 24 * 60 * 60 * 1000)),
+    ]);
   } catch (error) {
     console.warn(JSON.stringify({ event: "report_history_unavailable", message: error instanceof Error ? error.message : "Unexpected error" }));
   }
@@ -25,7 +30,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <div className="dashboard-wrap">
         <DashboardClient
           sampleMode={query.sample === "1"}
-          history={reports.map((report) => ({ ...report, createdAt: report.createdAt.toISOString() }))}
+          quota={{ used: usedToday, limit: DAILY_ANALYSIS_LIMIT, retentionDays: REPORT_RETENTION_DAYS }}
+          signOutHref={chatGPTSignOutPath("/")}
+          history={reports.map((report) => ({ ...report, createdAt: report.createdAt.toISOString(), expiresAt: report.expiresAt?.toISOString() ?? null }))}
         />
       </div>
     </main>
