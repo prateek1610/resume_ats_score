@@ -6,7 +6,7 @@ type AnalysisViewProps = {
 };
 
 const metricLabels = {
-  keywordScore: "Role relevance",
+  keywordScore: "ATS keyword coverage",
   structureScore: "ATS structure",
   impactScore: "Achievement impact",
   essentialsScore: "Core completeness",
@@ -59,7 +59,6 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
     resumeReview: { dimensions: [], strengths: [], areasToImprove: [], suggestedRewrites: [], suggestedAdditions: [], missingElements: [] },
   };
   const sections = analysis.sections.map(normalizeSection);
-  const highPriority = analysis.recommendations.filter((item) => item.priority === "high").length;
   const supportedCount = details.requirementEvidence.filter((item) => item.status === "supported").length;
   const partialCount = details.requirementEvidence.filter((item) => item.status === "partial").length;
   const missingCount = details.requirementEvidence.filter((item) => item.status === "missing").length;
@@ -98,26 +97,33 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
           <span>{analysis.overallScore}</span><small>/100</small>
         </div>
         <div className="analysis-score-copy">
-          <p className="eyebrow">Overall resume readiness</p>
+          <p className="eyebrow">Overall ATS readiness</p>
           <h2>{verdict.title}</h2>
           <p>{verdict.copy} {analysis.mode === "job_match" ? `This review is tailored for ${details.targetRole}.` : "Add a job description for role-specific evidence matching."}</p>
           <div className="analysis-kpis" aria-label="Report highlights">
             <span><strong>{analysis.strengths.length}</strong> strengths</span>
-            <span><strong>{highPriority}</strong> priority fixes</span>
-            {analysis.mode === "job_match" && <span><strong>{supportedCount}</strong> requirements proved</span>}
+            <span><strong>{analysis.recommendations.length}</strong> recommended actions</span>
+            {analysis.mode === "job_match" && <span><strong>{supportedCount}</strong> requirements supported</span>}
           </div>
         </div>
       </section>
 
       <nav className="report-jump-nav" aria-label="Analysis sections">
         <a href="#overview"><span>01</span> Overview</a>
-        {analysis.mode === "job_match" && <a href="#role-fit"><span>02</span> Role fit</a>}
-        <a href="#resume-quality"><span>{analysis.mode === "job_match" ? "03" : "02"}</span> Deep review</a>
-        <a href="#action-plan"><span>{analysis.mode === "job_match" ? "04" : "03"}</span> Priorities</a>
+        {analysis.mode === "job_match" && <a href="#role-fit"><span>02</span> Job match</a>}
+        <a href="#resume-quality"><span>{analysis.mode === "job_match" ? "03" : "02"}</span> Resume review</a>
+        <a href="#action-plan"><span>{analysis.mode === "job_match" ? "04" : "03"}</span> Action plan</a>
       </nav>
 
+      <aside className="report-reading-guide" aria-label="How to use this report">
+        <strong>Use this report in order</strong>
+        <span><b>1</b> Confirm what already works</span>
+        <span><b>2</b> Close evidence gaps truthfully</span>
+        <span><b>3</b> Apply the highest-impact rewrites</span>
+      </aside>
+
       <section className="report-chapter" id="overview">
-        <ChapterHeading number="01" eyebrow="Overview" title="Your report at a glance" copy="Start here: overall performance, strongest proof and the clearest risk." />
+        <ChapterHeading number="01" eyebrow="Overview" title="Your report at a glance" copy="Start with the strongest evidence, the clearest risk and the scores behind the overall result." />
 
         <div className="analysis-metrics" aria-label="Score breakdown">
           {(Object.keys(metricLabels) as Array<keyof typeof metricLabels>).map((key) => (
@@ -150,7 +156,7 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
 
       {analysis.mode === "job_match" && (
         <section className="report-chapter" id="role-fit">
-          <ChapterHeading number="02" eyebrow="Role fit" title="Job requirements versus your evidence" copy="See exactly what is proved, only mentioned, or missing before you apply." />
+          <ChapterHeading number="02" eyebrow="Job match" title="Job requirements versus resume evidence" copy="See what the resume supports, what it only suggests and what it does not yet prove." />
           <section className="role-fit-verdict" aria-label={`Role relevance ${roleFitScore} out of 100`}>
             <div className="role-fit-score"><strong>{roleFitScore}</strong><span>/100</span><small>Role relevance</small></div>
             <div className="role-fit-copy"><p className="eyebrow">Match verdict</p><h3>{roleFitVerdict}</h3><p>Your resume is strongest in <strong>{resumeProfile}</strong>, compared with the target role <strong>{details.targetRole}</strong>.</p></div>
@@ -163,7 +169,7 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
           </div>
 
           <section className="mismatch-panel">
-            <div className="subsection-heading"><div><p className="eyebrow">Mismatch report</p><h3>What does not match the job</h3></div><span>{mismatches.length} gaps found</span></div>
+            <div className="subsection-heading"><div><p className="eyebrow">Evidence gap report</p><h3>Requirements your resume does not yet prove</h3><small>Only add evidence you can explain confidently in an interview.</small></div><span>{mismatches.length} gaps found</span></div>
             {mismatches.length ? <div className="mismatch-list">{mismatches.map((item, index) => (
               <article className={`mismatch-item mismatch-${item.impact}`} key={`${item.requirement}-${index}`}>
                 <div className="mismatch-number">{String(index + 1).padStart(2, "0")}</div>
@@ -198,7 +204,7 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
       )}
 
       <section className="report-chapter" id="resume-quality">
-        <ChapterHeading number={analysis.mode === "job_match" ? "03" : "02"} eyebrow="Deep resume review" title="Evidence-based writing analysis" copy="Every finding below is tied to the resume itself. Bracketed rewrite placeholders must be replaced only with facts you can verify." />
+        <ChapterHeading number={analysis.mode === "job_match" ? "03" : "02"} eyebrow="Deep resume review" title="Evidence-based writing analysis" copy="Every finding is tied to the resume. Treat bracketed rewrites as templates and replace placeholders only with facts you can verify." />
 
         {review.dimensions.length ? <section className="dimension-grid" aria-label="Resume review dimensions">
           {review.dimensions.map((dimension) => <article className={`dimension-card dimension-${dimension.status}`} key={dimension.id}>
@@ -222,9 +228,9 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
         </section>
 
         <section className="review-section review-rewrites" aria-labelledby="rewrites-title">
-          <header className="review-section-heading"><span>3</span><div><p className="eyebrow">Original → improved</p><h3 id="rewrites-title">Suggested Rewrites</h3><p>Stronger verbs, tighter phrasing and honest metric placeholders—never fabricated achievements.</p></div></header>
+          <header className="review-section-heading"><span>3</span><div><p className="eyebrow">Original → rewrite template</p><h3 id="rewrites-title">Suggested Rewrites</h3><p>Stronger verbs, tighter phrasing and honest placeholders. These are templates, not facts to copy blindly.</p></div></header>
           {review.suggestedRewrites.length ? <div className="rewrite-list">{review.suggestedRewrites.map((item, index) => <article className="rewrite-card" key={`${item.location}-${index}`}>
-            <header><span>{String(index + 1).padStart(2, "0")}</span><small>{item.location}</small></header><div className="rewrite-comparison"><div><b>Original line</b><p>{item.original}</p></div><span aria-hidden="true">→</span><div><b>Improved version</b><p>{item.improved}</p></div></div><footer><strong>Why this is stronger</strong><p>{item.reason}</p></footer>
+            <header><span>{String(index + 1).padStart(2, "0")}</span><small>{item.location}</small></header><div className="rewrite-comparison"><div><b>Original line</b><p>{item.original}</p></div><span aria-hidden="true">→</span><div><b>Rewrite template</b><p>{item.improved}</p></div></div><footer><strong>Why this is stronger</strong><p>{item.reason}</p></footer>
           </article>)}</div> : <div className="report-card"><p className="empty-copy">No weak bullet was selected for rewriting. Re-upload older reports to generate line-by-line rewrites.</p></div>}
         </section>
 

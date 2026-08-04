@@ -4,9 +4,9 @@ import { resumeLensLoginPath, resumeLensSignupPath } from "@/lib/auth-paths";
 export const dynamic = "force-dynamic";
 
 const scoreRows = [
-  { label: "Keyword match", score: 78 },
-  { label: "Structure", score: 85 },
-  { label: "Impact", score: 83 },
+  { label: "Job relevance", score: 78 },
+  { label: "ATS structure", score: 85 },
+  { label: "Achievement impact", score: 83 },
 ];
 
 function Brand() {
@@ -23,6 +23,7 @@ function Brand() {
 function ScoreCard() {
   return (
     <div className="score-card" aria-label="Example ATS score report">
+      <div className="score-card-badge"><span>Live report preview</span><small>Example analysis</small></div>
       <div className="score-card-top">
         <div>
           <p className="score-label">ATS score</p>
@@ -54,8 +55,8 @@ function ScoreCard() {
       <div className="insight-card">
         <span className="insight-icon" aria-hidden="true">✦</span>
         <span>
-          <strong>Improve your keyword match</strong>
-          <small>Add 6–8 missing skills from the job description.</small>
+          <strong>3 requirements need stronger evidence</strong>
+          <small>See the exact resume lines to improve before you apply.</small>
         </span>
         <span className="insight-arrow" aria-hidden="true">›</span>
       </div>
@@ -92,54 +93,58 @@ export default async function Home() {
       <section className="hero" id="top">
         <div className="hero-glow" aria-hidden="true" />
         <div className="hero-copy">
-          <p className="eyebrow">Resume intelligence</p>
-          <h1>Know what recruiters’ systems see.</h1>
+          <p className="eyebrow">Free ATS resume analysis</p>
+          <h1>See what your resume proves—and what it’s missing.</h1>
           <p className="hero-description">
-            Upload your resume for a deep ATS review, or add a job description
-            to see role relevance, evidence gaps and line-level rewrites.
+            Get an ATS score you can act on: evidence-based strengths, exact-line
+            improvements, rewrite templates and a requirement-by-requirement job match.
           </p>
           <div className="hero-actions">
             <a className="button button-primary" href={dashboardHref}>
-              <span className="upload-symbol" aria-hidden="true">↑</span>
-              Upload resume
+              Analyze my resume
+              <span className="button-arrow" aria-hidden="true">→</span>
             </a>
             <a className="button button-secondary" href={sampleHref}>
-              Try with sample
+              Preview a full report
             </a>
           </div>
-          <p className="trust-line">10 free analyses/day <span>•</span> Private files <span>•</span> 30-day retention</p>
+          <div className="trust-line" aria-label="Free plan and privacy highlights">
+            <span>✓ 10 free analyses/day</span>
+            <span>✓ Private by default</span>
+            <span>✓ Delete anytime</span>
+          </div>
         </div>
         <ScoreCard />
       </section>
 
       <section className="proof-strip" aria-label="Product highlights">
-        <span><strong>2 modes</strong> Resume or job match</span>
-        <span><strong>10/day</strong> Free public beta</span>
-        <span><strong>Actionable</strong> Prioritized fixes</span>
-        <span><strong>Saved</strong> Reports and history</span>
+        <span><strong>7 dimensions</strong> Complete resume health</span>
+        <span><strong>Line-level</strong> Evidence, not generic advice</span>
+        <span><strong>Job-fit map</strong> Supported, partial and missing</span>
+        <span><strong>Private workspace</strong> Saved reports and files</span>
       </section>
 
       <section className="content-section" id="how-it-works">
         <div className="section-heading">
           <p className="eyebrow">How it works</p>
-          <h2>From file to focused action plan.</h2>
-          <p>No vague advice. Every score maps to a clear improvement.</p>
+          <h2>Three steps from upload to stronger application.</h2>
+          <p>Every score leads to evidence you can review and a next action you can take.</p>
         </div>
         <div className="step-grid">
           <article>
             <span className="step-number">01</span>
-            <h3>Upload your resume</h3>
-            <p>Choose a PDF or DOCX. We validate the file before analysis.</p>
+            <h3>Start with your resume</h3>
+            <p>Upload a PDF or DOCX. The file is validated before any analysis begins.</p>
           </article>
           <article>
             <span className="step-number">02</span>
-            <h3>Add a target role</h3>
-            <p>Paste a job description for keyword and skills matching, or skip it.</p>
+            <h3>Target a job—or stay general</h3>
+            <p>Paste a job description for requirement matching, or skip it for a standalone review.</p>
           </article>
           <article>
             <span className="step-number">03</span>
-            <h3>Improve with confidence</h3>
-            <p>Review your score, missing keywords, section health, and top fixes.</p>
+            <h3>Fix what matters first</h3>
+            <p>Work through prioritized gaps, exact-line feedback and honest rewrite templates.</p>
           </article>
         </div>
       </section>
@@ -147,13 +152,14 @@ export default async function Home() {
       <section className="content-section features-section" id="features">
         <div className="section-heading">
           <p className="eyebrow">What gets measured</p>
-          <h2>A transparent score, not a mystery number.</h2>
+          <h2>A complete review, organized for action.</h2>
+          <p>Understand both what is working and what could stop a recruiter from seeing your fit.</p>
         </div>
         <div className="feature-grid">
-          <article><span>⌁</span><h3>Keyword match</h3><p>Role-specific terms, hard skills, and relevant tools.</p></article>
-          <article><span>≡</span><h3>ATS structure</h3><p>Readable sections, contact details, dates, and formatting.</p></article>
-          <article><span>↗</span><h3>Impact language</h3><p>Strong action verbs, measurable outcomes, and clarity.</p></article>
-          <article><span>✓</span><h3>Essentials check</h3><p>Core resume signals recruiters expect to find quickly.</p></article>
+          <article><span>✓</span><h3>Evidence-based strengths</h3><p>See the exact lines that already demonstrate credibility and impact.</p></article>
+          <article><span>!</span><h3>Precise improvements</h3><p>Each issue is tied to the section or line that needs attention.</p></article>
+          <article><span>→</span><h3>Rewrite templates</h3><p>Turn vague bullets into stronger, tighter statements without inventing facts.</p></article>
+          <article><span>⌁</span><h3>Role requirement map</h3><p>Separate supported evidence from partial claims and genuine gaps.</p></article>
         </div>
       </section>
 
@@ -170,8 +176,9 @@ export default async function Home() {
 
       <section className="final-cta">
         <p className="eyebrow">Ready when you are</p>
-        <h2>Make your next application stronger.</h2>
-        <a className="button button-primary" href={dashboardHref}>Analyze my resume</a>
+        <h2>Know what to fix before you apply.</h2>
+        <p>Start with a free analysis. Add a job description whenever you want a targeted match.</p>
+        <a className="button button-primary" href={dashboardHref}>Start my free analysis <span aria-hidden="true">→</span></a>
       </section>
 
       <footer>
