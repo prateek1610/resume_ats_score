@@ -124,6 +124,41 @@ test("renders a complete and safe login journey", async () => {
   assert.match(html, /Create free account/);
 });
 
+test("renders all configured public authentication methods", async () => {
+  const previous = {
+    url: process.env.SUPABASE_URL,
+    key: process.env.SUPABASE_PUBLISHABLE_KEY,
+    origin: process.env.AUTH_SITE_URL,
+  };
+  process.env.SUPABASE_URL = "https://localhost:9";
+  process.env.SUPABASE_PUBLISHABLE_KEY = "integration-test-publishable-key";
+  process.env.AUTH_SITE_URL = "http://localhost";
+
+  try {
+    const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+    workerUrl.searchParams.set("configured-auth", `${process.pid}-${Date.now()}`);
+    const { default: worker } = await import(workerUrl.href);
+    const response = await worker.fetch(
+      new Request("http://localhost/signup?return_to=%2Fdashboard", { headers: { accept: "text/html" } }),
+      { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+      { waitUntil() {}, passThroughOnException() {} },
+    );
+    const html = await response.text();
+    assert.equal(response.status, 200);
+    assert.match(html, /Continue with Google/);
+    assert.match(html, /or continue with email/);
+    assert.match(html, /Email link/);
+    assert.match(html, /action="\/auth\/google"/);
+    assert.match(html, /action="\/auth\/password\?intent=signup"/);
+    assert.match(html, /At least 12 characters/);
+    assert.match(html, /Confirm password/);
+  } finally {
+    restoreEnvironment("SUPABASE_URL", previous.url);
+    restoreEnvironment("SUPABASE_PUBLISHABLE_KEY", previous.key);
+    restoreEnvironment("AUTH_SITE_URL", previous.origin);
+  }
+});
+
 test("protected dashboard redirects through the ResumeLens login screen", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("protected", `${process.pid}-${Date.now()}`);
@@ -164,3 +199,8 @@ test("returns a complete authenticated sample analysis", async () => {
   assert.ok(payload.analysis.details.resumeReview.suggestedRewrites.some((item) => item.original && item.improved));
   assert.ok(payload.analysis.details.resumeReview.missingElements.some((item) => item.label === "Professional summary"));
 });
+
+function restoreEnvironment(key, value) {
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
+}

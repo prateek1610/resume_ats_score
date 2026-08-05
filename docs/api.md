@@ -1,6 +1,23 @@
 # ResumeLens API
 
-All API routes return JSON except the authenticated resume download route. Protected routes require the platform-provided authenticated user identity. Missing identity returns `401`.
+All API routes return JSON except the authenticated resume download route. Protected routes require a server-verified Supabase identity when Supabase Auth is configured. During the no-break migration fallback, the existing Sites identity header remains active only while Supabase variables are absent. Missing identity returns `401`.
+
+## Authentication routes
+
+Authentication forms use same-origin `application/x-www-form-urlencoded` POST requests and return redirects rather than JSON.
+
+| Route | Method | Purpose |
+| --- | --- | --- |
+| `/auth/google` | `POST` | Starts Google OAuth using a PKCE callback |
+| `/auth/password?intent=login` | `POST` | Signs in with email and password |
+| `/auth/password?intent=signup` | `POST` | Creates a password account and sends email verification when required |
+| `/auth/magic-link` | `POST` | Sends a one-time sign-in or signup link |
+| `/auth/callback` | `GET` | Exchanges a provider code for a secure cookie session |
+| `/auth/recovery` | `POST` | Sends a generic password-reset response without account enumeration |
+| `/auth/password-update` | `POST` | Updates a password from a verified recovery session and revokes other sessions |
+| `/auth/signout` | `GET` | Clears the local Supabase session and safely returns to an internal path |
+
+Email/password inputs are bounded and validated with Zod. Signup and password reset require 12–128 characters. Persistent D1 windows limit auth requests per network address and normalized email subject.
 
 ## `POST /api/reports`
 

@@ -1,4 +1,4 @@
-import { getChatGPTUser } from "./chatgpt-auth";
+import { getAppUser } from "@/lib/app-auth";
 import { resumeLensLoginPath, resumeLensSignupPath } from "@/lib/auth-paths";
 
 export const dynamic = "force-dynamic";
@@ -65,7 +65,7 @@ function ScoreCard() {
 }
 
 export default async function Home() {
-  const user = await getChatGPTUser();
+  const user = await getAppUser();
   const dashboardHref = user
     ? "/dashboard"
     : resumeLensLoginPath("/dashboard");

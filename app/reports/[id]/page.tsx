@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { chatGPTSignOutPath } from "@/app/chatgpt-auth";
 import { AnalysisView } from "@/components/analysis-view";
-import { requireAppUser } from "@/lib/app-auth";
+import { requireAppUser, signOutPath } from "@/lib/app-auth";
 import { getReport } from "@/lib/reports";
 import type { ResumeAnalysis } from "@/lib/scoring";
 import { DeleteReportButton } from "./delete-report-button";
@@ -52,7 +51,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     <main className="app-shell">
       <header className="app-header">
         <Link className="app-brand" href="/"><span className="app-brand-mark">◎</span>ResumeLens</Link>
-        <div className="account-menu"><a href="/dashboard">Dashboard</a><a href={chatGPTSignOutPath("/")}>Sign out</a></div>
+        <div className="account-menu"><a href="/dashboard">Dashboard</a><a href={signOutPath("/")}>Sign out</a></div>
       </header>
       <div className="report-wrap">
         <div className="report-toolbar">

@@ -1,6 +1,5 @@
-import { chatGPTSignOutPath } from "@/app/chatgpt-auth";
 import Link from "next/link";
-import { requireAppUser } from "@/lib/app-auth";
+import { requireAppUser, signOutPath } from "@/lib/app-auth";
 import { DAILY_ANALYSIS_LIMIT, REPORT_RETENTION_DAYS } from "@/lib/policy";
 import { countReportsSince, listReports } from "@/lib/reports";
 import { DashboardClient } from "./dashboard-client";
@@ -25,13 +24,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     <main className="app-shell">
       <header className="app-header">
         <Link className="app-brand" href="/"><span className="app-brand-mark">◎</span>ResumeLens</Link>
-        <div className="account-menu"><span>{user.displayName}</span><a href={chatGPTSignOutPath("/")}>Sign out</a></div>
+        <div className="account-menu"><span>{user.displayName}</span><a href={signOutPath("/")}>Sign out</a></div>
       </header>
       <div className="dashboard-wrap">
         <DashboardClient
           sampleMode={query.sample === "1"}
           quota={{ used: usedToday, limit: DAILY_ANALYSIS_LIMIT, retentionDays: REPORT_RETENTION_DAYS }}
-          signOutHref={chatGPTSignOutPath("/")}
+          signOutHref={signOutPath("/")}
           history={reports.map((report) => ({ ...report, createdAt: report.createdAt.toISOString(), expiresAt: report.expiresAt?.toISOString() ?? null }))}
         />
       </div>

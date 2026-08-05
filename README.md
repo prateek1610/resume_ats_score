@@ -9,7 +9,8 @@ ResumeLens is a production-ready ATS resume review web application. Signed-in us
 - Deep resume diagnostics covering section health, measurable outcomes, action language, weak phrases, pronouns, bullet readability, and role-specific keyword coverage
 - Recruiter-style strengths, improvement points, section-by-section feedback, prioritized fixes, and concrete rewrite examples
 - PDF and DOCX text extraction with file-size, type, page, and processing limits
-- Sign in with ChatGPT and server-side ownership checks
+- Google, verified email/password, and passwordless email-link authentication through Supabase Auth
+- Email verification, secure password recovery, protected callback handling, and server-side session checks
 - Private original-resume storage in R2 and report metadata/history in D1
 - Saved report dashboard, private file download, and permanent report/file deletion
 - Sample report journey that does not consume storage
@@ -30,7 +31,7 @@ ResumeLens is guidance software, not an employer ATS emulator. Scores can differ
 | Runtime | Cloudflare Workers-compatible ESM |
 | Database | Cloudflare D1 with Drizzle ORM |
 | File storage | Cloudflare R2 |
-| Authentication | Dispatch-owned Sign in with ChatGPT |
+| Authentication | Supabase Auth (`@supabase/ssr`) with Google OAuth, password and magic link |
 | Validation | Zod plus explicit file allowlists and limits |
 | PDF/DOCX parsing | `unpdf` serverless PDF.js bundle and Mammoth |
 | Styling | Tailwind CSS entry point with a custom accessible design system |
@@ -38,13 +39,14 @@ ResumeLens is guidance software, not an employer ATS emulator. Scores can differ
 
 ## Architecture
 
-1. The public landing page explains the score and sends the user through ChatGPT sign-in.
-2. The protected dashboard accepts a PDF or DOCX plus an optional job description.
-3. `POST /api/reports` validates and parses the file, runs the deterministic scoring engine, uploads the original file to private R2, and writes the owned report to D1.
-4. Protected report and download routes always query by both report ID and authenticated email.
-5. Deleting a report removes its D1 record and associated R2 object.
-6. New reports receive a 30-day expiry; expired rows are hidden immediately and cleaned from D1/R2 during normal service activity.
-7. Public traffic is protected by persistent burst windows and a rolling 24-hour free-plan quota.
+1. The public landing page explains the score and sends the user to a centralized ResumeLens login or signup journey.
+2. Supabase Auth handles Google OAuth, verified password accounts, magic links, password recovery and HTTP-only session cookies. A Next.js Proxy refreshes sessions before protected rendering.
+3. The protected dashboard accepts a PDF or DOCX plus an optional job description.
+4. `POST /api/reports` validates and parses the file, runs the deterministic scoring engine, uploads the original file to private R2, and writes the owned report to D1.
+5. Protected report and download routes always query by both report ID and the normalized verified account email, preserving access to pre-migration reports.
+6. Deleting a report removes its D1 record and associated R2 object.
+7. New reports receive a 30-day expiry; expired rows are hidden immediately and cleaned from D1/R2 during normal service activity.
+8. Public traffic is protected by persistent auth/analysis burst windows and a rolling 24-hour free-plan quota.
 
 Important directories:
 
@@ -72,11 +74,19 @@ npm run install:ci
 npm run dev
 ```
 
-The development-only preview identity in `lib/app-auth.ts` makes the protected UI inspectable locally. Production builds never use that fallback and require authenticated platform headers.
+Without Supabase variables, the development-only preview identity in `lib/app-auth.ts` keeps the protected UI inspectable locally. When Supabase is configured, local and production requests use verified Supabase sessions instead.
 
 ## Environment and platform bindings
 
-Copy `.env.example` to `.env.local` only if you add optional local values. The default scoring engine does not require an API key.
+Copy `.env.example` to `.env.local` and replace the sample authentication values when testing the full login journey. Never use a Supabase `service_role` or secret key in this application.
+
+| Variable | Required for public auth | Purpose |
+| --- | --- | --- |
+| `SUPABASE_URL` | Yes | Supabase project URL |
+| `SUPABASE_PUBLISHABLE_KEY` | Yes | Public client key used by the server-side auth adapter |
+| `AUTH_SITE_URL` | Yes | Canonical origin used to construct safe callbacks; use `http://localhost:3000` locally |
+
+The application intentionally keeps these calls server-side, so no browser client or privileged Supabase key is required.
 
 `.openai/hosting.json` declares the platform-managed bindings:
 
@@ -84,6 +94,16 @@ Copy `.env.example` to `.env.local` only if you add optional local values. The d
 - `BUCKET`: R2 bucket containing private original resumes
 
 Do not commit binding credentials or local secrets. Hosted values and resources are injected by the Sites platform.
+
+### Supabase production setup
+
+1. Create a Supabase project and keep **Confirm email** enabled for password accounts.
+2. In **Authentication → URL Configuration**, set the Site URL to the public ResumeLens origin and allow the exact `/auth/callback` URL. Add `http://localhost:3000/auth/callback` only for local development.
+3. Enable Google in **Authentication → Providers**. Create Google OAuth credentials using the Supabase provider callback shown in that screen, then store the Google client ID/secret in Supabase—not in this repository.
+4. Configure a custom SMTP provider and branded confirmation, magic-link and recovery templates before launch. Supabase’s default mail sender is intended for trial use and has restrictive project-wide limits.
+5. Add the three variables above to the Sites production runtime, save a new Site version and deploy it. Until both Supabase values exist, ResumeLens retains the previous Sign in with ChatGPT path as a no-break migration fallback.
+
+Magic-link and recovery responses are deliberately generic so they do not reveal whether an email has an account. ResumeLens also applies persistent per-address and per-email auth limits in D1.
 
 ## Database setup
 
@@ -126,9 +146,11 @@ Run `npm run build` for a local production validation. Deploy through the Sites 
 
 - Accepted formats are allowlisted to PDF and DOCX; file extension, MIME type, size, page count, extracted text length, and parsing time are bounded.
 - Uploads are stored under a one-way owner-derived prefix rather than an email address.
-- Every report, delete, and download lookup includes the authenticated owner email.
+- Every report, delete, and download lookup includes the authenticated, verified owner email.
+- Server authorization uses a Supabase-validated user record and never trusts an unverified cookie session object.
+- OAuth, verification and recovery callbacks accept only safe internal return paths; mutation endpoints enforce same-origin requests.
 - User strings are rendered as text; raw resume or job-description HTML is never injected.
-- The application has no third-party AI/API dependency and does not send resume content to an external model.
+- The scoring engine has no third-party AI/model dependency and never sends resume content to Supabase or another external model.
 - Browser mutation requests are restricted to same-origin traffic, and unexpected infrastructure errors are never returned verbatim.
 - Public access exposes the landing and legal pages; dashboard, report, download, deletion, and analysis routes still require authenticated identity.
 
