@@ -5,18 +5,67 @@ const SAFE_RESUME_ERRORS = [
 ];
 
 export function requestId(request: Request) {
-  return request.headers.get("cf-ray")?.slice(0, 80) || crypto.randomUUID();
+  const candidate = request.headers.get("cf-ray")?.slice(0, 80) ?? "";
+  return /^[a-zA-Z0-9._:-]+$/.test(candidate) ? candidate : crypto.randomUUID();
 }
 
 export function isTrustedMutationRequest(request: Request) {
-  if (request.headers.get("sec-fetch-site") === "cross-site") return false;
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite === "cross-site") return false;
   const origin = request.headers.get("origin");
-  if (!origin) return true;
+  const referer = request.headers.get("referer");
   try {
-    return new URL(origin).origin === new URL(request.url).origin;
+    const expectedOrigin = new URL(request.url).origin;
+    if (origin) return new URL(origin).origin === expectedOrigin;
+    if (referer) return new URL(referer).origin === expectedOrigin;
+    return false;
   } catch {
     return false;
   }
+}
+
+export function isContentType(request: Request, expected: string) {
+  const mediaType = (request.headers.get("content-type") ?? "").split(";", 1)[0]?.trim().toLowerCase();
+  return mediaType === expected.toLowerCase();
+}
+
+export function hasAcceptableContentLength(request: Request, maximum: number) {
+  const raw = request.headers.get("content-length");
+  if (raw === null) return true;
+  if (!/^\d+$/.test(raw)) return false;
+  const size = Number(raw);
+  return Number.isSafeInteger(size) && size >= 0 && size <= maximum;
+}
+
+export class RequestBodyTooLargeError extends Error {
+  constructor() {
+    super("Request body exceeded its processing limit.");
+    this.name = "RequestBodyTooLargeError";
+  }
+}
+
+export async function readRequestBytes(request: Request, maximum: number) {
+  const reader = request.body?.getReader();
+  if (!reader) return new Uint8Array();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maximum) {
+      await reader.cancel().catch(() => undefined);
+      throw new RequestBodyTooLargeError();
+    }
+    chunks.push(value);
+  }
+  const body = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
 }
 
 export function sanitizePlainText(value: string) {
@@ -38,6 +87,9 @@ export function jsonResponse(body: unknown, status: number, id: string, extraHea
     status,
     headers: {
       "cache-control": "no-store",
+      "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
+      "cross-origin-resource-policy": "same-origin",
+      "referrer-policy": "no-referrer",
       "x-content-type-options": "nosniff",
       "x-request-id": id,
       ...extraHeaders,

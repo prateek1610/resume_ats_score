@@ -1,6 +1,7 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import { applySecurityHeaders } from "../lib/security-headers";
 
 interface Env {
   ASSETS: Fetcher;
@@ -19,20 +20,9 @@ interface ExecutionContext {
   passThroughOnException(): void;
 }
 
-const SECURITY_HEADERS = {
-  "Content-Security-Policy": "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'",
-  "Referrer-Policy": "strict-origin-when-cross-origin",
-  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
-  "X-Content-Type-Options": "nosniff",
-  "X-Frame-Options": "DENY",
-  "Cross-Origin-Opener-Policy": "same-origin",
-} as const;
-
 function withSecurityHeaders(response: Response) {
   const securedResponse = new Response(response.body, response);
-  for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
-    securedResponse.headers.set(name, value);
-  }
+  applySecurityHeaders(securedResponse.headers);
   return securedResponse;
 }
 

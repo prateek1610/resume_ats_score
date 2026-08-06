@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnalysisView } from "@/components/analysis-view";
 import type { ResumeAnalysis } from "@/lib/scoring";
 import { AccountDataControls } from "./account-data-controls";
@@ -23,6 +24,7 @@ const MAX_RESUME_BYTES = 10 * 1024 * 1024;
 const SUPPORTED_RESUME_EXTENSIONS = [".pdf", ".docx"];
 
 export function DashboardClient({ history, sampleMode, quota, signOutHref }: Props) {
+  const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
   const sampleResult = useRef<HTMLElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -76,7 +78,7 @@ export function DashboardClient({ history, sampleMode, quota, signOutHref }: Pro
       const response = await fetch("/api/reports", { method: "POST", body: form, signal: controller.signal });
       const payload = await response.json() as { error?: string; report?: { id: string } };
       if (!response.ok || !payload.report) throw new Error(payload.error ?? "Analysis failed.");
-      window.location.assign(`/reports/${payload.report.id}`);
+      router.push(`/reports/${payload.report.id}`);
     } catch (cause) {
       setError(cause instanceof DOMException && cause.name === "AbortError" ? "The analysis took too long. Please retry with a smaller text-based file." : cause instanceof Error ? cause.message : "Analysis failed. Please retry.");
       setLoading(false);

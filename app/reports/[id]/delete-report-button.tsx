@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export function DeleteReportButton({ reportId }: { reportId: string }) {
+  const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -14,7 +16,8 @@ export function DeleteReportButton({ reportId }: { reportId: string }) {
       const response = await fetch(`/api/reports/${reportId}`, { method: "DELETE" });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Delete failed.");
-      window.location.assign("/dashboard");
+      router.replace("/dashboard");
+      router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Delete failed.");
       setBusy(false);

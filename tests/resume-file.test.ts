@@ -24,9 +24,39 @@ test("sanitizes uploaded filenames", () => {
 
 test("checks PDF and DOCX content signatures instead of trusting metadata", async () => {
   const pdf = new File([new TextEncoder().encode("%PDF-1.7\nresume")], "resume.pdf", { type: "application/pdf" });
-  const docx = new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00])], "resume.docx", { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+  const docx = new File([minimalDocxArchive()], "resume.docx", { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
   const fakePdf = new File([new TextEncoder().encode("not a pdf")], "resume.pdf", { type: "application/pdf" });
+  const activePdf = new File([new TextEncoder().encode("%PDF-1.7\n/JavaScript")], "resume.pdf", { type: "application/pdf" });
   assert.equal(await validateResumeFileSignature(pdf), null);
   assert.equal(await validateResumeFileSignature(docx), null);
   assert.match(await validateResumeFileSignature(fakePdf) ?? "", /signature is invalid/i);
+  assert.match(await validateResumeFileSignature(activePdf) ?? "", /active or embedded content/i);
 });
+
+function minimalDocxArchive() {
+  const names = ["[Content_Types].xml", "word/document.xml"];
+  const local = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
+  const records = names.map((name) => {
+    const encoded = new TextEncoder().encode(name);
+    const record = new Uint8Array(46 + encoded.length);
+    const view = new DataView(record.buffer);
+    view.setUint32(0, 0x02014b50, true);
+    view.setUint16(28, encoded.length, true);
+    record.set(encoded, 46);
+    return record;
+  });
+  const centralSize = records.reduce((total, record) => total + record.length, 0);
+  const eocd = new Uint8Array(22);
+  const eocdView = new DataView(eocd.buffer);
+  eocdView.setUint32(0, 0x06054b50, true);
+  eocdView.setUint16(8, records.length, true);
+  eocdView.setUint16(10, records.length, true);
+  eocdView.setUint32(12, centralSize, true);
+  eocdView.setUint32(16, local.length, true);
+  const archive = new Uint8Array(local.length + centralSize + eocd.length);
+  let offset = 0;
+  archive.set(local, offset); offset += local.length;
+  for (const record of records) { archive.set(record, offset); offset += record.length; }
+  archive.set(eocd, offset);
+  return archive;
+}

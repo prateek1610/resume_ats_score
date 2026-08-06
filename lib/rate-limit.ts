@@ -13,7 +13,8 @@ async function subjectDigest(subject: string) {
 }
 
 export function clientAddress(request: Request) {
-  return request.headers.get("cf-connecting-ip")?.trim() || "unknown";
+  const candidate = request.headers.get("cf-connecting-ip")?.trim() ?? "";
+  return /^[0-9a-fA-F:.]{2,64}$/.test(candidate) ? candidate : "unknown";
 }
 
 export async function consumeRateLimit(scope: string, subject: string, limit: number, windowMs: number): Promise<RateLimitResult> {
