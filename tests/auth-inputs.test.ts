@@ -15,8 +15,8 @@ test("requires a strong matching password and a usable name for signup", () => {
   const valid = passwordSignupSchema.safeParse({
     fullName: "Asha Mehta",
     email: "asha@example.com",
-    password: "correct horse battery staple",
-    confirmPassword: "correct horse battery staple",
+    password: "violet-saturn-lantern-river-47",
+    confirmPassword: "violet-saturn-lantern-river-47",
     returnTo: "/dashboard",
   });
   assert.equal(valid.success, true);
@@ -26,6 +26,15 @@ test("requires a strong matching password and a usable name for signup", () => {
     email: "not-an-email",
     password: "too-short",
     confirmPassword: "different",
+  }).success, false);
+});
+
+test("rejects common long passwords", () => {
+  assert.equal(passwordSignupSchema.safeParse({
+    fullName: "Asha Mehta",
+    email: "asha@example.com",
+    password: "passwordpassword",
+    confirmPassword: "passwordpassword",
   }).success, false);
 });
 

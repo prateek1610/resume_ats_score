@@ -2,6 +2,7 @@ import { getAppUser } from "@/lib/app-auth";
 import { getReport, removeReport } from "@/lib/reports";
 import { isTrustedMutationRequest, jsonResponse, requestId } from "@/lib/request-security";
 import { getResumeBucket } from "@/lib/storage";
+import { errorType, securityLog } from "@/lib/security-log";
 
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   const requestIdentifier = requestId(request);
@@ -18,7 +19,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     try {
       await (await getResumeBucket()).delete(report.storageKey);
     } catch (error) {
-      console.error(JSON.stringify({ event: "resume_file_delete_failed", reportId: id, message: error instanceof Error ? error.message : "Unexpected error" }));
+      securityLog("error", "resume_file_delete_failed", requestIdentifier, { errorType: errorType(error) });
       return jsonResponse({ error: "We could not delete the saved file. Please retry." }, 503, requestIdentifier);
     }
   }

@@ -5,6 +5,7 @@ import { emailLinkSchema, formValues } from "@/lib/auth/inputs";
 import { createSupabaseRouteClient } from "@/lib/auth/supabase-server";
 import { safeRelativeReturnPath } from "@/lib/auth-paths";
 import { isTrustedMutationRequest } from "@/lib/request-security";
+import { errorType, securityLog } from "@/lib/security-log";
 
 export async function POST(request: NextRequest) {
   if (!isTrustedMutationRequest(request) || !authRequestAllowed(request)) return authRedirect(request, authErrorPath("/login", "blocked"));
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
   if (!isSupabaseAuthConfigured()) return authRedirect(request, authErrorPath(page, "unavailable", returnTo));
 
   try {
-    const retryAfter = await enforceAuthRateLimit(request, parsed.data.email);
+    const retryAfter = await enforceAuthRateLimit(request, parsed.data.email, "email");
     if (retryAfter) return authRedirect(request, authErrorPath(page, "rate_limited", returnTo));
 
     const { client } = createSupabaseRouteClient(request);
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
     // The same response is used for unknown and known emails to prevent account enumeration.
     return authRedirect(request, `/auth/check-email?purpose=magic-link&return_to=${encodeURIComponent(returnTo)}`);
   } catch (error) {
-    console.error(JSON.stringify({ event: "magic_link_auth_failed", message: error instanceof Error ? error.message : "Unexpected error", timestamp: new Date().toISOString() }));
+    securityLog("error", "magic_link_auth_failed", undefined, { errorType: errorType(error) });
     return authRedirect(request, authErrorPath(page, "unavailable", returnTo));
   }
 }

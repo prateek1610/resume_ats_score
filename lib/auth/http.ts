@@ -3,7 +3,8 @@ import { authSiteOrigin } from "@/lib/auth/config";
 import { safeRelativeReturnPath, supabaseCallbackPath } from "@/lib/auth-paths";
 import { clientAddress, consumeRateLimit } from "@/lib/rate-limit";
 
-const AUTH_WINDOW_MS = 10 * 60 * 1_000;
+const PASSWORD_WINDOW_MS = 15 * 60 * 1_000;
+const EMAIL_WINDOW_MS = 60 * 60 * 1_000;
 
 export function authRedirect(request: NextRequest, path: string, status = 303) {
   const response = NextResponse.redirect(new URL(path, authSiteOrigin(request.url)), status);
@@ -24,16 +25,20 @@ export function authCallbackUrl(request: NextRequest, returnTo: string, recovery
   return url.toString();
 }
 
-export async function enforceAuthRateLimit(request: NextRequest, subject: string) {
+export async function enforceAuthRateLimit(request: NextRequest, subject: string, action: "password" | "email") {
+  const emailAction = action === "email";
+  const windowMs = emailAction ? EMAIL_WINDOW_MS : PASSWORD_WINDOW_MS;
+  const addressLimitValue = emailAction ? 10 : 20;
+  const subjectLimitValue = emailAction ? 3 : 5;
   const [addressLimit, subjectLimit] = await Promise.all([
-    consumeRateLimit("auth-address", clientAddress(request), 30, AUTH_WINDOW_MS),
-    consumeRateLimit("auth-subject", subject, 8, AUTH_WINDOW_MS),
+    consumeRateLimit(`auth-${action}-address`, clientAddress(request), addressLimitValue, windowMs),
+    consumeRateLimit(`auth-${action}-subject`, subject, subjectLimitValue, windowMs),
   ]);
   const limited = !addressLimit.allowed ? addressLimit : !subjectLimit.allowed ? subjectLimit : null;
   return limited ? limited.retryAfterSeconds : null;
 }
 
 export function authRequestAllowed(request: NextRequest) {
-  const type = request.headers.get("content-type")?.toLowerCase() ?? "";
-  return type.startsWith("application/x-www-form-urlencoded") || type.startsWith("multipart/form-data");
+  const type = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+  return type === "application/x-www-form-urlencoded";
 }

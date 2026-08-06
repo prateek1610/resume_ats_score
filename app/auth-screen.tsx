@@ -10,12 +10,11 @@ type AuthSearchParams = { return_to?: string | string[]; error?: string | string
 
 const errorMessages: Record<string, string> = {
   blocked: "That request was blocked for your protection. Refresh this page and try again.",
-  invalid_input: "Check the highlighted details. Passwords must match and use at least 12 characters.",
+  invalid_input: "Check the details. Passwords must match, use at least 15 characters and not be a commonly used password.",
   invalid_email: "Enter a valid email address.",
   invalid_credentials: "The email or password is incorrect. You can also request a secure email link.",
   email_not_confirmed: "Verify your email before signing in. Check your inbox for the confirmation link.",
   rate_limited: "Too many attempts. Wait a few minutes before trying again.",
-  oauth_unavailable: "Google sign-in could not start. Please retry or use email.",
   callback_failed: "That sign-in link is invalid or expired. Start again to receive a fresh link.",
   recovery_expired: "That password-reset link has expired. Request a new one.",
   unavailable: "Sign-in is temporarily unavailable. Please retry in a moment.",
@@ -60,7 +59,7 @@ export async function AuthScreen({ mode, searchParams }: { mode: AuthMode; searc
           <p>Choose the sign-in method that works for you. Every verified method returns you to the same private workspace.</p>
 
           <div className="auth-benefits">
-            <article><span>01</span><div><strong>One consistent account</strong><p>Google, password and email-link access all use your verified email identity.</p></div></article>
+            <article><span>01</span><div><strong>One consistent account</strong><p>Password and email-link access both use your verified email identity.</p></div></article>
             <article><span>02</span><div><strong>Protected sessions</strong><p>Secure, HTTP-only session cookies are validated by the authentication provider.</p></div></article>
             <article><span>03</span><div><strong>Safe return</strong><p>After sign-in, you return directly to the ResumeLens page you requested.</p></div></article>
           </div>
@@ -84,7 +83,7 @@ export async function AuthScreen({ mode, searchParams }: { mode: AuthMode; searc
                 {isSignup ? "Create account with ChatGPT" : "Continue with ChatGPT"}
                 <span aria-hidden="true">→</span>
               </a>
-              <div className="auth-security-note"><span aria-hidden="true">⌁</span><p>Secure account access is active. Google and email methods appear after the public auth provider is configured.</p></div>
+              <div className="auth-security-note"><span aria-hidden="true">⌁</span><p>Secure account access is active. Password and email-link methods appear after the public auth provider is configured.</p></div>
             </>
           )}
 

@@ -25,6 +25,9 @@ export const metadata: Metadata = {
   },
 };
 
+// Nonce-based CSP requires every HTML response to be rendered per request.
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: Readonly<{

@@ -55,8 +55,16 @@ test("renders the ResumeLens landing journey", async () => {
   assert.match(html, /href="\/privacy"/);
   assert.match(html, /href="\/terms"/);
   assert.match(response.headers.get("content-security-policy") ?? "", /default-src 'self'/);
+  assert.match(response.headers.get("content-security-policy") ?? "", /'strict-dynamic'/);
+  assert.doesNotMatch(response.headers.get("content-security-policy") ?? "", /script-src[^;]*'unsafe-inline'/);
   assert.equal(response.headers.get("x-frame-options"), "DENY");
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.match(response.headers.get("strict-transport-security") ?? "", /max-age=31536000/);
+  const nonce = response.headers.get("content-security-policy")?.match(/'nonce-([^']+)'/)?.[1];
+  assert.ok(nonce);
+  for (const match of html.matchAll(/<script\b([^>]*)>/gi)) {
+    assert.match(match[1], new RegExp(`\\bnonce=["']${nonce}["']`));
+  }
 });
 
 test("renders public privacy and terms pages", async () => {
@@ -103,7 +111,7 @@ test("health endpoint fails closed without a database binding", async () => {
   assert.deepEqual(Object.keys(payload).sort(), ["database", "responseTimeMs", "status"]);
   assert.equal(payload.status, "degraded");
   assert.equal(payload.database, "unavailable");
-  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.match(response.headers.get("cache-control") ?? "", /no-store/);
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
 });
 
@@ -145,12 +153,10 @@ test("renders all configured public authentication methods", async () => {
     );
     const html = await response.text();
     assert.equal(response.status, 200);
-    assert.match(html, /Continue with Google/);
-    assert.match(html, /or continue with email/);
+    assert.doesNotMatch(html, /Google/);
     assert.match(html, /Email link/);
-    assert.match(html, /action="\/auth\/google"/);
     assert.match(html, /action="\/auth\/password\?intent=signup"/);
-    assert.match(html, /At least 12 characters/);
+    assert.match(html, /At least 15 characters/);
     assert.match(html, /Confirm password/);
   } finally {
     restoreEnvironment("SUPABASE_URL", previous.url);
@@ -179,7 +185,7 @@ test("returns a complete authenticated sample analysis", async () => {
   const response = await worker.fetch(
     new Request("http://localhost/api/reports/sample", {
       method: "POST",
-      headers: { "oai-authenticated-user-email": "test@example.com" },
+      headers: { "oai-authenticated-user-email": "test@example.com", origin: "http://localhost", "sec-fetch-site": "same-origin" },
     }),
     { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
     { waitUntil() {}, passThroughOnException() {} },

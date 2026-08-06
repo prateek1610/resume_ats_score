@@ -5,6 +5,7 @@ import { formValues, updatePasswordSchema } from "@/lib/auth/inputs";
 import { createSupabaseRouteClient } from "@/lib/auth/supabase-server";
 import { resumeLensLoginPath, safeRelativeReturnPath } from "@/lib/auth-paths";
 import { isTrustedMutationRequest } from "@/lib/request-security";
+import { errorType, securityLog } from "@/lib/security-log";
 
 export async function POST(request: NextRequest) {
   if (!isTrustedMutationRequest(request) || !authRequestAllowed(request)) return authRedirect(request, authErrorPath("/auth/update-password", "blocked"));
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
     await client.auth.signOut({ scope: "global" });
     return applyCookies(authRedirect(request, `${resumeLensLoginPath(returnTo)}&success=password_updated`));
   } catch (error) {
-    console.error(JSON.stringify({ event: "password_update_failed", message: error instanceof Error ? error.message : "Unexpected error", timestamp: new Date().toISOString() }));
+    securityLog("error", "password_update_failed", undefined, { errorType: errorType(error) });
     return authRedirect(request, authErrorPath("/auth/update-password", "unavailable", returnTo));
   }
 }

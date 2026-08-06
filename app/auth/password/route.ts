@@ -5,6 +5,7 @@ import { formValues, passwordLoginSchema, passwordSignupSchema } from "@/lib/aut
 import { createSupabaseRouteClient } from "@/lib/auth/supabase-server";
 import { safeRelativeReturnPath } from "@/lib/auth-paths";
 import { isTrustedMutationRequest } from "@/lib/request-security";
+import { errorType, securityLog } from "@/lib/security-log";
 
 export async function POST(request: NextRequest) {
   const intent = request.nextUrl.searchParams.get("intent") === "signup" ? "signup" : "login";
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return authRedirect(request, authErrorPath(page, "invalid_input", returnTo));
 
   try {
-    const retryAfter = await enforceAuthRateLimit(request, parsed.data.email);
+    const retryAfter = await enforceAuthRateLimit(request, parsed.data.email, "password");
     if (retryAfter) return authRedirect(request, authErrorPath(page, "rate_limited", returnTo));
 
     const { client, applyCookies } = createSupabaseRouteClient(request);
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
     if (error) return authRedirect(request, authErrorPath(page, authErrorCode(error.code), returnTo));
     return applyCookies(authRedirect(request, returnTo));
   } catch (error) {
-    console.error(JSON.stringify({ event: "password_auth_failed", message: error instanceof Error ? error.message : "Unexpected error", timestamp: new Date().toISOString() }));
+    securityLog("error", "password_auth_failed", undefined, { errorType: errorType(error) });
     return authRedirect(request, authErrorPath(page, "unavailable", returnTo));
   }
 }

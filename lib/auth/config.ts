@@ -1,21 +1,25 @@
 export type SupabaseAuthConfig = {
   url: string;
   publishableKey: string;
+  siteOrigin: string;
 };
 
 export function getSupabaseAuthConfig(): SupabaseAuthConfig | null {
   const url = process.env.SUPABASE_URL?.trim();
   const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY?.trim();
-  if (!url || !publishableKey) return null;
+  const configuredSiteUrl = process.env.AUTH_SITE_URL?.trim();
+  if (!url || !publishableKey || !configuredSiteUrl) return null;
 
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "https:" && parsed.hostname !== "localhost") return null;
+    const site = new URL(configuredSiteUrl);
+    if (site.protocol !== "https:" && site.hostname !== "localhost") return null;
+    if (site.username || site.password || site.pathname !== "/" || site.search || site.hash) return null;
+    return { url: parsed.origin, publishableKey, siteOrigin: site.origin };
   } catch {
     return null;
   }
-
-  return { url, publishableKey };
 }
 
 export function isSupabaseAuthConfigured() {
@@ -29,16 +33,5 @@ export function requireSupabaseAuthConfig() {
 }
 
 export function authSiteOrigin(requestUrl: string) {
-  const configuredOrigin = process.env.AUTH_SITE_URL?.trim();
-  if (configuredOrigin) {
-    try {
-      const origin = new URL(configuredOrigin);
-      if (origin.protocol === "https:" || origin.hostname === "localhost") return origin.origin;
-    } catch {
-      // Fall back to the request origin when local configuration is invalid.
-    }
-  }
-
-  const requestOrigin = new URL(requestUrl);
-  return requestOrigin.origin;
+  return getSupabaseAuthConfig()?.siteOrigin ?? new URL(requestUrl).origin;
 }

@@ -3,6 +3,7 @@ import { isSupabaseAuthConfigured } from "@/lib/auth/config";
 import { authErrorPath, authRedirect } from "@/lib/auth/http";
 import { createSupabaseRouteClient } from "@/lib/auth/supabase-server";
 import { safeRelativeReturnPath } from "@/lib/auth-paths";
+import { errorType, securityLog } from "@/lib/security-log";
 
 export async function GET(request: NextRequest) {
   const returnTo = safeRelativeReturnPath(request.nextUrl.searchParams.get("return_to"));
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
       : returnTo;
     return applyCookies(authRedirect(request, destination, 302));
   } catch (error) {
-    console.error(JSON.stringify({ event: "auth_callback_failed", message: error instanceof Error ? error.message : "Unexpected error", timestamp: new Date().toISOString() }));
+    securityLog("error", "auth_callback_failed", undefined, { errorType: errorType(error) });
     return authRedirect(request, authErrorPath("/login", "callback_failed", returnTo), 302);
   }
 }

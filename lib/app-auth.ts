@@ -3,6 +3,7 @@ import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { isSupabaseAuthConfigured } from "@/lib/auth/config";
 import { createSupabaseServerClient } from "@/lib/auth/supabase-server";
 import { appSignOutPath, resumeLensLoginPath } from "@/lib/auth-paths";
+import { errorType, securityLog } from "@/lib/security-log";
 
 export type AppUser = {
   id: string;
@@ -37,11 +38,7 @@ export async function getAppUser(): Promise<AppUser | null> {
         provider: "supabase",
       };
     } catch (error) {
-      console.warn(JSON.stringify({
-        event: "auth_session_validation_failed",
-        message: error instanceof Error ? error.message : "Unexpected error",
-        timestamp: new Date().toISOString(),
-      }));
+      securityLog("warn", "auth_session_validation_failed", undefined, { errorType: errorType(error) });
       return null;
     }
   }

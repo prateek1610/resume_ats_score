@@ -8,16 +8,15 @@ Authentication forms use same-origin `application/x-www-form-urlencoded` POST re
 
 | Route | Method | Purpose |
 | --- | --- | --- |
-| `/auth/google` | `POST` | Starts Google OAuth using a PKCE callback |
 | `/auth/password?intent=login` | `POST` | Signs in with email and password |
 | `/auth/password?intent=signup` | `POST` | Creates a password account and sends email verification when required |
 | `/auth/magic-link` | `POST` | Sends a one-time sign-in or signup link |
 | `/auth/callback` | `GET` | Exchanges a provider code for a secure cookie session |
 | `/auth/recovery` | `POST` | Sends a generic password-reset response without account enumeration |
 | `/auth/password-update` | `POST` | Updates a password from a verified recovery session and revokes other sessions |
-| `/auth/signout` | `GET` | Clears the local Supabase session and safely returns to an internal path |
+| `/auth/signout` | `POST` | Clears the local Supabase session after a same-origin check and safely returns to an internal path |
 
-Email/password inputs are bounded and validated with Zod. Signup and password reset require 12–128 characters. Persistent D1 windows limit auth requests per network address and normalized email subject.
+Email/password inputs are bounded and validated with Zod. Signup and password reset require 15–128 characters and reject a small local set of obvious common passwords. Persistent D1 windows apply separate strict limits to password attempts and email delivery per network address and normalized email subject.
 
 ## `POST /api/reports`
 
@@ -27,7 +26,7 @@ Content type: `multipart/form-data`
 
 | Field | Required | Rules |
 | --- | --- | --- |
-| `resume` | Yes | PDF or DOCX, exact MIME/extension match, 1 byte–10 MB, PDF maximum 15 pages |
+| `resume` | Yes | PDF or DOCX, exact MIME/extension match, 1 byte–10 MB, PDF maximum 15 pages; active PDF content, malformed DOCX archives, ZIP64/encrypted archives and decompression bombs are rejected |
 | `jobDescription` | No | Plain text, maximum 20,000 characters |
 
 Success: `201`

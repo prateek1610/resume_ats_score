@@ -1,7 +1,14 @@
 import { z } from "zod";
 
 const email = z.string().trim().email("Enter a valid email address.").max(254).transform((value) => value.toLowerCase());
-const password = z.string().min(12, "Use at least 12 characters.").max(128, "Password is too long.");
+const COMMON_PASSWORDS = new Set([
+  "123456789012345", "passwordpassword", "password123456", "qwertyuiopasdfg",
+  "letmeinletmein", "iloveyouiloveyou", "correcthorsebatterystaple",
+]);
+const password = z.string()
+  .min(15, "Use at least 15 characters.")
+  .max(128, "Password is too long.")
+  .refine((value) => !COMMON_PASSWORDS.has(value.toLowerCase().replace(/\s+/g, "")), "Choose a less common password.");
 const returnTo = z.string().max(2_048).optional();
 
 export const passwordLoginSchema = z.object({
