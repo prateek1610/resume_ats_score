@@ -1,8 +1,13 @@
 import type { ResumeAnalysis, SectionInsight } from "@/lib/scoring";
+import type { StructuredResume } from "@/lib/structured-resume";
+import type { ReportView } from "@/lib/report-view";
 
 type AnalysisViewProps = {
   analysis: ResumeAnalysis;
   compact?: boolean;
+  view?: ReportView;
+  basePath?: string;
+  structuredResume?: StructuredResume | null;
 };
 
 const metricLabels = {
@@ -40,7 +45,68 @@ function ChapterHeading({ number, eyebrow, title, copy }: { number: string; eyeb
   );
 }
 
-export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
+function SourceValue({ item }: { item: { value: string; sourceLine: number; confidence: string } | null | undefined }) {
+  if (!item) return <span className="parsed-empty">Not detected</span>;
+  return <span className="parsed-value">{item.value}<small>Line {item.sourceLine} · {item.confidence}</small></span>;
+}
+
+function ParsedResumeView({ resume }: { resume?: StructuredResume | null }) {
+  if (!resume) {
+    return <div className="parsed-empty-state"><span>◎</span><h3>Structured data is not available for this report</h3><p>Re-upload this resume to generate the ATS parsing preview.</p></div>;
+  }
+
+  return (
+    <div className="parsed-resume-view">
+      <section className="parsed-confidence">
+        <div><strong>{resume.extraction.confidence}</strong><span>/100</span><small>Extraction confidence</small></div>
+        <div><h3>{resume.extraction.warnings.length ? "Review recommended" : "Resume parsed successfully"}</h3><p>Every value below is linked to the source line used to identify it.</p>{resume.extraction.warnings.length > 0 && <ul>{resume.extraction.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}</div>
+      </section>
+
+      <section className="parsed-section">
+        <header><span>01</span><div><p className="eyebrow">Identity</p><h3>Contact details</h3></div></header>
+        <div className="parsed-contact-grid">
+          <article><b>Name</b><SourceValue item={resume.contact.name} /></article>
+          <article><b>Email</b>{resume.contact.emails.length ? resume.contact.emails.map((item) => <SourceValue item={item} key={`${item.value}-${item.sourceLine}`} />) : <span className="parsed-empty">Not detected</span>}</article>
+          <article><b>Phone</b>{resume.contact.phones.length ? resume.contact.phones.map((item) => <SourceValue item={item} key={`${item.value}-${item.sourceLine}`} />) : <span className="parsed-empty">Not detected</span>}</article>
+          <article><b>Location</b><SourceValue item={resume.contact.location} /></article>
+          {resume.contact.links.length > 0 && <article className="parsed-contact-links"><b>Profile links</b>{resume.contact.links.map((item) => <SourceValue item={item} key={`${item.value}-${item.sourceLine}`} />)}</article>}
+        </div>
+      </section>
+
+      <section className="parsed-section">
+        <header><span>02</span><div><p className="eyebrow">Positioning</p><h3>Summary and skills</h3></div></header>
+        <div className="parsed-summary-grid">
+          <article><b>Professional summary</b>{resume.summary ? <blockquote>{resume.summary.text}<small>Lines {resume.summary.sourceLines.join(", ")} · {resume.summary.confidence}</small></blockquote> : <span className="parsed-empty">Not detected</span>}</article>
+          <article><b>Skills</b><div className="parsed-skill-list">{resume.skills.length ? resume.skills.map((skill) => <span key={`${skill.value}-${skill.sourceLine}`}>{skill.value}<small>Line {skill.sourceLine}</small></span>) : <span className="parsed-empty">No structured skills detected</span>}</div></article>
+        </div>
+      </section>
+
+      <section className="parsed-section">
+        <header><span>03</span><div><p className="eyebrow">Career history</p><h3>Experience</h3></div></header>
+        <div className="parsed-entry-list">{resume.experience.length ? resume.experience.map((entry, index) => <details key={`${entry.title?.value ?? "role"}-${index}`} open={index === 0}>
+          <summary><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{entry.title?.value ?? "Role not detected"}</strong><small>{entry.organization?.value ?? "Organization not detected"}{entry.dateRange ? ` · ${entry.dateRange.value}` : ""}</small></div><i>⌄</i></summary>
+          <div className="parsed-entry-body">
+            <div className="parsed-entry-meta"><span><b>Title</b><SourceValue item={entry.title} /></span><span><b>Organization</b><SourceValue item={entry.organization} /></span><span><b>Dates</b><SourceValue item={entry.dateRange} /></span><span><b>Location</b><SourceValue item={entry.location} /></span></div>
+            {entry.bullets.length > 0 && <ul>{entry.bullets.map((bullet) => <li key={bullet.id}>{bullet.text}<small>Line {bullet.sourceLine}</small></li>)}</ul>}
+          </div>
+        </details>) : <span className="parsed-empty">No structured experience entries detected</span>}</div>
+      </section>
+
+      <div className="parsed-lower-grid">
+        <section className="parsed-section">
+          <header><span>04</span><div><p className="eyebrow">Qualifications</p><h3>Education</h3></div></header>
+          <div className="parsed-simple-list">{resume.education.length ? resume.education.map((entry, index) => <article key={`${entry.qualification?.value ?? "education"}-${index}`}><SourceValue item={entry.qualification} /><SourceValue item={entry.institution} /><SourceValue item={entry.dateRange} /></article>) : <span className="parsed-empty">Not detected</span>}</div>
+        </section>
+        <section className="parsed-section">
+          <header><span>05</span><div><p className="eyebrow">Credentials</p><h3>Certifications</h3></div></header>
+          <div className="parsed-simple-list">{resume.certifications.length ? resume.certifications.map((entry, index) => <article key={`${entry.name.value}-${index}`}><SourceValue item={entry.name} /><SourceValue item={entry.issuer} /><SourceValue item={entry.date} /></article>) : <span className="parsed-empty">Not detected</span>}</div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+export function AnalysisView({ analysis, compact = false, view, basePath = "", structuredResume }: AnalysisViewProps) {
   const verdict = scoreVerdict(analysis.overallScore);
   const details = analysis.details ?? {
     targetRole: analysis.mode === "job_match" ? "Target role" : "General ATS readiness",
@@ -89,10 +155,26 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
     [analysis.stats.weakPhraseCount ?? 0, "Weak phrases"],
     [analysis.stats.longBulletCount ?? 0, "Long bullets"],
   ];
+  const activeView = view ?? "overview";
+  const showAll = compact && view === undefined;
+  const showOverview = showAll || activeView === "overview";
+  const showJobMatch = showAll || activeView === "job-match";
+  const showReview = showAll || activeView === "review";
+  const showRewrites = showAll || activeView === "rewrites";
+  const showChecklist = showAll || activeView === "checklist";
+  const showParsedResume = !showAll && activeView === "parsed-resume";
+  const reportLinks = [
+    { view: "overview" as const, number: "01", label: "Overview", copy: "Scores and next actions" },
+    ...(analysis.mode === "job_match" ? [{ view: "job-match" as const, number: "02", label: "Job Match", copy: "Evidence and keyword gaps" }] : []),
+    { view: "review" as const, number: analysis.mode === "job_match" ? "03" : "02", label: "Resume Review", copy: "Strengths and weak areas" },
+    { view: "rewrites" as const, number: analysis.mode === "job_match" ? "04" : "03", label: "Rewrites", copy: "Stronger bullet templates" },
+    { view: "checklist" as const, number: analysis.mode === "job_match" ? "05" : "04", label: "Missing Elements", copy: "Completeness and diagnostics" },
+    { view: "parsed-resume" as const, number: analysis.mode === "job_match" ? "06" : "05", label: "Parsed Resume", copy: "What the ATS detected" },
+  ];
 
   return (
     <div className={`analysis-view analysis-view-v2${compact ? " analysis-view-compact" : ""}`}>
-      <section className="analysis-score-panel analysis-hero">
+      <section className={`analysis-score-panel analysis-hero${activeView !== "overview" ? " analysis-hero-slim" : ""}`}>
         <div className="analysis-score-ring" style={{ "--score": analysis.overallScore } as React.CSSProperties} aria-label={`ATS score ${analysis.overallScore} out of 100`}>
           <span>{analysis.overallScore}</span><small>/100</small>
         </div>
@@ -108,21 +190,28 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
         </div>
       </section>
 
-      <nav className="report-jump-nav" aria-label="Analysis sections">
+      {showAll && <nav className="report-jump-nav" aria-label="Analysis sections">
         <a href="#overview"><span>01</span> Overview</a>
         {analysis.mode === "job_match" && <a href="#role-fit"><span>02</span> Job match</a>}
         <a href="#resume-quality"><span>{analysis.mode === "job_match" ? "03" : "02"}</span> Resume review</a>
         <a href="#action-plan"><span>{analysis.mode === "job_match" ? "04" : "03"}</span> Action plan</a>
-      </nav>
+      </nav>}
 
-      <aside className="report-reading-guide" aria-label="How to use this report">
+      {showAll && <aside className="report-reading-guide" aria-label="How to use this report">
         <strong>Use this report in order</strong>
         <span><b>1</b> Confirm what already works</span>
         <span><b>2</b> Close evidence gaps truthfully</span>
         <span><b>3</b> Apply the highest-impact rewrites</span>
-      </aside>
+      </aside>}
 
-      <section className="report-chapter" id="overview">
+      <div className={compact ? "report-workspace-content" : "report-workspace-layout"}>
+        {!compact && <nav className="report-section-nav" aria-label="Report sections">
+          <div><span>Report workspace</span><small>Review one area at a time</small></div>
+          {reportLinks.map((item) => <a href={`${basePath}/${item.view}`} aria-current={activeView === item.view ? "page" : undefined} key={item.view}><b>{item.number}</b><span><strong>{item.label}</strong><small>{item.copy}</small></span><i aria-hidden="true">→</i></a>)}
+        </nav>}
+        <div className="report-workspace-main">
+
+      {showOverview && <section className="report-chapter" id="overview">
         <ChapterHeading number="01" eyebrow="Overview" title="Your report at a glance" copy="Start with the strongest evidence, the clearest risk and the scores behind the overall result." />
 
         <div className="analysis-metrics" aria-label="Score breakdown">
@@ -152,9 +241,9 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
             </div>
           </section>
         </div>
-      </section>
+      </section>}
 
-      {analysis.mode === "job_match" && (
+      {showJobMatch && analysis.mode === "job_match" && (
         <section className="report-chapter" id="role-fit">
           <ChapterHeading number="02" eyebrow="Job match" title="Job requirements versus resume evidence" copy="See what the resume supports, what it only suggests and what it does not yet prove." />
           <section className="role-fit-verdict" aria-label={`Role relevance ${roleFitScore} out of 100`}>
@@ -203,7 +292,7 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
         </section>
       )}
 
-      <section className="report-chapter" id="resume-quality">
+      {showReview && <section className="report-chapter" id="resume-quality">
         <ChapterHeading number={analysis.mode === "job_match" ? "03" : "02"} eyebrow="Deep resume review" title="Evidence-based writing analysis" copy="Every finding is tied to the resume. Treat bracketed rewrites as templates and replace placeholders only with facts you can verify." />
 
         {review.dimensions.length ? <section className="dimension-grid" aria-label="Resume review dimensions">
@@ -226,21 +315,27 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
             <div className="improvement-index">{String(index + 1).padStart(2, "0")}</div><div className="improvement-source"><div className="review-meta"><span className={`priority priority-${item.priority}`}>{item.priority}</span><small>{item.location}</small></div><blockquote>“{item.line}”</blockquote></div><div className="improvement-advice"><strong>{item.dimension.replace("_", " ")}</strong><p>{item.suggestion}</p></div>
           </article>)}</div> : <div className="match-complete"><span>✓</span><p>No material line-level issue was detected. Tailor the strongest bullets for each job.</p></div>}
         </section>
+      </section>}
 
+      {showRewrites && <section className="report-chapter" id="rewrites">
+        <ChapterHeading number={analysis.mode === "job_match" ? "04" : "03"} eyebrow="Rewrite studio" title="Turn weak lines into stronger evidence" copy="Compare original bullets with tighter templates, then add only details you can verify." />
         <section className="review-section review-rewrites" aria-labelledby="rewrites-title">
-          <header className="review-section-heading"><span>3</span><div><p className="eyebrow">Original → rewrite template</p><h3 id="rewrites-title">Suggested Rewrites</h3><p>Stronger verbs, tighter phrasing and honest placeholders. These are templates, not facts to copy blindly.</p></div></header>
+          <header className="review-section-heading"><span>1</span><div><p className="eyebrow">Original → rewrite template</p><h3 id="rewrites-title">Suggested Rewrites</h3><p>Stronger verbs, tighter phrasing and honest placeholders. These are templates, not facts to copy blindly.</p></div></header>
           {review.suggestedRewrites.length ? <div className="rewrite-list">{review.suggestedRewrites.map((item, index) => <article className="rewrite-card" key={`${item.location}-${index}`}>
             <header><span>{String(index + 1).padStart(2, "0")}</span><small>{item.location}</small></header><div className="rewrite-comparison"><div><b>Original line</b><p>{item.original}</p></div><span aria-hidden="true">→</span><div><b>Rewrite template</b><p>{item.improved}</p></div></div><footer><strong>Why this is stronger</strong><p>{item.reason}</p></footer>
           </article>)}</div> : <div className="report-card"><p className="empty-copy">No weak bullet was selected for rewriting. Re-upload older reports to generate line-by-line rewrites.</p></div>}
         </section>
 
         <section className="review-section review-additions" aria-labelledby="additions-title">
-          <header className="review-section-heading"><span>4</span><div><p className="eyebrow">Fill important gaps</p><h3 id="additions-title">Sentences You Could Add</h3><p>Use these patterns only when they reflect your real experience.</p></div></header>
+          <header className="review-section-heading"><span>2</span><div><p className="eyebrow">Fill important gaps</p><h3 id="additions-title">Sentences You Could Add</h3><p>Use these patterns only when they reflect your real experience.</p></div></header>
           {review.suggestedAdditions.length ? <div className="addition-grid">{review.suggestedAdditions.map((item, index) => <article key={`${item.title}-${index}`}><div><span>Suggested line {String(index + 1).padStart(2, "0")}</span><h4>{item.title}</h4></div><blockquote>{item.text}</blockquote><p>{item.reason}</p></article>)}</div> : <div className="report-card"><p className="empty-copy">Re-upload this resume to generate role-aware sentences you could add.</p></div>}
         </section>
+      </section>}
 
+      {showChecklist && <section className="report-chapter" id="checklist">
+        <ChapterHeading number={analysis.mode === "job_match" ? "05" : "04"} eyebrow="Completeness" title="Missing elements and technical checks" copy="See which standard resume elements are present, thin or missing, with detailed diagnostics available on demand." />
         <section className="review-section review-checklist" aria-labelledby="checklist-title">
-          <header className="review-section-heading"><span>5</span><div><p className="eyebrow">Completeness scan</p><h3 id="checklist-title">Missing Elements Checklist</h3><p>Present, thin and missing resume essentials in one place.</p></div></header>
+          <header className="review-section-heading"><span>1</span><div><p className="eyebrow">Completeness scan</p><h3 id="checklist-title">Missing Elements Checklist</h3><p>Present, thin and missing resume essentials in one place.</p></div></header>
           <div className="checklist-table">{review.missingElements.map((item) => <article key={item.label}><span className={`check-status check-${item.status}`}>{item.status === "present" ? "✓" : item.status === "thin" ? "!" : "×"}</span><div><strong>{item.label}</strong><p>{item.detail}</p></div><em>{item.status}</em></article>)}</div>
         </section>
 
@@ -249,10 +344,10 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
           <section className="section-audit section-audit-v2" aria-label="Resume section audit">{sections.map((section) => <article className={`section-audit-card section-${section.status}`} key={section.name}><div className="section-audit-top"><div><span className="section-state">{section.status}</span><h3>{section.name}</h3></div><strong>{section.score}<small>/100</small></strong></div><p>{section.feedback}</p><ul>{section.checks.map((check) => <li key={check}>{check}</li>)}</ul></article>)}</section>
           <section className="diagnostics-card diagnostics-card-v2"><div><p className="eyebrow">Resume diagnostics</p><h2>Writing signals</h2></div><div className="diagnostics-grid">{diagnostics.map(([value, label]) => <span key={label}><strong>{value}</strong>{label}</span>)}</div></section>
         </details>
-      </section>
+      </section>}
 
-      <section className="report-chapter" id="action-plan">
-        <ChapterHeading number={analysis.mode === "job_match" ? "04" : "03"} eyebrow="Action plan" title="Make these changes next" copy="Work from top to bottom—the highest-impact fixes are shown first." />
+      {showOverview && <section className="report-chapter" id="action-plan">
+        <ChapterHeading number="02" eyebrow="Action plan" title="Make these changes next" copy="Work from top to bottom—the highest-impact fixes are shown first." />
         <section className="action-plan">
           {analysis.recommendations.length ? analysis.recommendations.map((item, index) => (
             <article className="action-card" key={item.id}>
@@ -263,7 +358,14 @@ export function AnalysisView({ analysis, compact = false }: AnalysisViewProps) {
             </article>
           )) : <div className="report-card"><p className="empty-copy">No priority actions were found. Tailor the resume for each role before applying.</p></div>}
         </section>
-      </section>
+      </section>}
+
+      {showParsedResume && <section className="report-chapter" id="parsed-resume">
+        <ChapterHeading number={analysis.mode === "job_match" ? "06" : "05"} eyebrow="ATS parsing preview" title="What ResumeLens detected" copy="Confirm that contact details, skills, roles, education and certifications were assigned to the correct sections." />
+        <ParsedResumeView resume={structuredResume} />
+      </section>}
+        </div>
+      </div>
     </div>
   );
 }

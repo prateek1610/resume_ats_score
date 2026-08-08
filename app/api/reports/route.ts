@@ -3,42 +3,37 @@ import { getAppUser } from "@/lib/app-auth";
 import { claimExpiredReports, countReportsSince, createReport } from "@/lib/reports";
 import { ANALYSIS_BURST_LIMIT, ANALYSIS_BURST_WINDOW_MS, DAILY_ANALYSIS_LIMIT, reportExpiryDate } from "@/lib/policy";
 import { clientAddress, cleanOldRateLimits, consumeRateLimit } from "@/lib/rate-limit";
-import { isTrustedMutationRequest, jsonResponse, publicErrorMessage, requestId, sanitizePlainText } from "@/lib/request-security";
+import { hasAcceptableContentLength, isContentType, isTrustedMutationRequest, jsonResponse, publicErrorMessage, readRequestBytes, RequestBodyTooLargeError, requestId, sanitizePlainText } from "@/lib/request-security";
 import { analyzeResume } from "@/lib/scoring";
 import { extractResumeText, MAX_FILE_SIZE, safeFilename, validateResumeFile, validateResumeFileSignature } from "@/lib/resume-file";
 import { getResumeBucket, ownerStoragePrefix } from "@/lib/storage";
+import { errorType, securityLog } from "@/lib/security-log";
+import { extractStructuredResume } from "@/lib/structured-resume";
 
 export const dynamic = "force-dynamic";
 
 const jobDescriptionSchema = z.string().trim().max(20_000, "Job description is too long.");
 
-function logError(event: string, error: unknown, id: string) {
-  console.error(JSON.stringify({
-    event,
-    requestId: id,
-    message: error instanceof Error ? error.message : "Unexpected error",
-    timestamp: new Date().toISOString(),
-  }));
-}
-
 export async function POST(request: Request) {
   const id = requestId(request);
   if (!isTrustedMutationRequest(request)) return jsonResponse({ error: "This request was blocked for your protection." }, 403, id);
+  const uploadContentType = request.headers.get("content-type") ?? "";
+  if (!isContentType(request, "multipart/form-data") || !/;\s*boundary=(?:"[^"]{1,200}"|[^;\s]{1,200})(?:;|$)/i.test(uploadContentType)) {
+    return jsonResponse({ error: "Upload requests must use multipart form data." }, 415, id);
+  }
+  if (!hasAcceptableContentLength(request, MAX_FILE_SIZE + 512 * 1024)) return jsonResponse({ error: "The upload request is too large." }, 413, id);
   const user = await getAppUser();
   if (!user) return jsonResponse({ error: "Sign in to analyze a resume." }, 401, id);
 
   let storageKey: string | null = null;
   try {
-    const contentLength = Number(request.headers.get("content-length") ?? 0);
-    if (contentLength > MAX_FILE_SIZE + 512 * 1024) return jsonResponse({ error: "The upload request is too large." }, 413, id);
-
     const [userBurst, addressBurst] = await Promise.all([
       consumeRateLimit("resume-analysis-user", user.email, ANALYSIS_BURST_LIMIT, ANALYSIS_BURST_WINDOW_MS),
       consumeRateLimit("resume-analysis-address", clientAddress(request), ANALYSIS_BURST_LIMIT * 2, ANALYSIS_BURST_WINDOW_MS),
     ]);
     const burst = !userBurst.allowed ? userBurst : !addressBurst.allowed ? addressBurst : null;
     if (burst) {
-      console.warn(JSON.stringify({ event: "resume_analysis_rate_limited", requestId: id, timestamp: new Date().toISOString() }));
+      securityLog("warn", "resume_analysis_rate_limited", id);
       return jsonResponse({ error: `Too many analysis attempts. Try again in ${burst.retryAfterSeconds} seconds.` }, 429, id, { "retry-after": String(burst.retryAfterSeconds) });
     }
 
@@ -48,7 +43,8 @@ export async function POST(request: Request) {
       return jsonResponse({ error: `You have used today’s ${DAILY_ANALYSIS_LIMIT} free analyses. Try again after the rolling 24-hour window resets.` }, 429, id, { "retry-after": "3600" });
     }
 
-    const form = await request.formData();
+    const requestBytes = await readRequestBytes(request, MAX_FILE_SIZE + 512 * 1024);
+    const form = await new Response(requestBytes, { headers: { "content-type": request.headers.get("content-type") ?? "" } }).formData();
     const file = form.get("resume");
     if (!(file instanceof File)) {
       return jsonResponse({ error: "Choose a resume file." }, 400, id);
@@ -66,6 +62,7 @@ export async function POST(request: Request) {
     const jobDescription = sanitizePlainText(parsedJobDescription.data);
 
     const resumeText = await extractResumeText(file);
+    const structuredResume = extractStructuredResume(resumeText);
     const analysis = analyzeResume(resumeText, jobDescription);
     const reportId = crypto.randomUUID();
     const prefix = await ownerStoragePrefix(user.email);
@@ -99,11 +96,12 @@ export async function POST(request: Request) {
       sections: analysis.sections,
       stats: analysis.stats,
       analysisDetails: analysis.details,
+      structuredResume,
       createdAt: new Date(),
       expiresAt: reportExpiryDate(),
     });
 
-    console.info(JSON.stringify({ event: "resume_analysis_completed", requestId: id, mode: analysis.mode, fileSize: file.size, timestamp: new Date().toISOString() }));
+    securityLog("info", "resume_analysis_completed", id, { mode: analysis.mode, fileSize: file.size });
     try {
       await cleanOldRateLimits();
       const expired = await claimExpiredReports();
@@ -111,7 +109,7 @@ export async function POST(request: Request) {
     } catch {
       // Cleanup is best-effort and must not discard a successfully created report.
     }
-    return jsonResponse({ report: { id: report.id, overallScore: report.overallScore }, quota: { limit: DAILY_ANALYSIS_LIMIT, remaining: Math.max(0, DAILY_ANALYSIS_LIMIT - usedToday - 1) } }, 201, id, {
+    return jsonResponse({ report: { id: report.id, overallScore: report.overallScore, extraction: structuredResume.extraction }, quota: { limit: DAILY_ANALYSIS_LIMIT, remaining: Math.max(0, DAILY_ANALYSIS_LIMIT - usedToday - 1) } }, 201, id, {
       "x-ratelimit-limit": String(DAILY_ANALYSIS_LIMIT),
       "x-ratelimit-remaining": String(Math.max(0, DAILY_ANALYSIS_LIMIT - usedToday - 1)),
     });
@@ -119,7 +117,8 @@ export async function POST(request: Request) {
     if (storageKey) {
       try { await (await getResumeBucket()).delete(storageKey); } catch { /* best-effort rollback */ }
     }
-    logError("resume_analysis_failed", error, id);
+    if (error instanceof RequestBodyTooLargeError) return jsonResponse({ error: "The upload request is too large." }, 413, id);
+    securityLog("error", "resume_analysis_failed", id, { errorType: errorType(error) });
     return jsonResponse({ error: publicErrorMessage(error), requestId: id }, 500, id);
   }
 }

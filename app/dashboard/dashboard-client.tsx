@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnalysisView } from "@/components/analysis-view";
+import type { ReportView } from "@/lib/report-view";
 import type { ResumeAnalysis } from "@/lib/scoring";
+import type { StructuredResume } from "@/lib/structured-resume";
 import { AccountDataControls } from "./account-data-controls";
 
 type HistoryItem = {
@@ -21,15 +24,25 @@ type Props = { history: HistoryItem[]; sampleMode: boolean; quota: { used: numbe
 
 const MAX_RESUME_BYTES = 10 * 1024 * 1024;
 const SUPPORTED_RESUME_EXTENSIONS = [".pdf", ".docx"];
+const SAMPLE_VIEWS: Array<{ id: ReportView; label: string }> = [
+  { id: "overview", label: "Overview" },
+  { id: "job-match", label: "Job Match" },
+  { id: "review", label: "Resume Review" },
+  { id: "rewrites", label: "Rewrites" },
+  { id: "checklist", label: "Missing Elements" },
+  { id: "parsed-resume", label: "Parsed Resume" },
+];
 
 export function DashboardClient({ history, sampleMode, quota, signOutHref }: Props) {
+  const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
   const sampleResult = useRef<HTMLElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [jobDescription, setJobDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [sample, setSample] = useState<{ filename: string; analysis: ResumeAnalysis } | null>(null);
+  const [sample, setSample] = useState<{ filename: string; analysis: ResumeAnalysis; structuredResume: StructuredResume | null } | null>(null);
+  const [sampleView, setSampleView] = useState<ReportView>("overview");
 
   useEffect(() => {
     if (!sample || !sampleResult.current) return;
@@ -76,7 +89,7 @@ export function DashboardClient({ history, sampleMode, quota, signOutHref }: Pro
       const response = await fetch("/api/reports", { method: "POST", body: form, signal: controller.signal });
       const payload = await response.json() as { error?: string; report?: { id: string } };
       if (!response.ok || !payload.report) throw new Error(payload.error ?? "Analysis failed.");
-      window.location.assign(`/reports/${payload.report.id}`);
+      router.push(`/reports/${payload.report.id}/overview`);
     } catch (cause) {
       setError(cause instanceof DOMException && cause.name === "AbortError" ? "The analysis took too long. Please retry with a smaller text-based file." : cause instanceof Error ? cause.message : "Analysis failed. Please retry.");
       setLoading(false);
@@ -90,9 +103,10 @@ export function DashboardClient({ history, sampleMode, quota, signOutHref }: Pro
     setError("");
     try {
       const response = await fetch("/api/reports/sample", { method: "POST" });
-      const payload = await response.json() as { error?: string; filename?: string; analysis?: ResumeAnalysis };
+      const payload = await response.json() as { error?: string; filename?: string; analysis?: ResumeAnalysis; structuredResume?: StructuredResume };
       if (!response.ok || !payload.analysis || !payload.filename) throw new Error(payload.error ?? "Sample analysis failed.");
-      setSample({ filename: payload.filename, analysis: payload.analysis });
+      setSampleView("overview");
+      setSample({ filename: payload.filename, analysis: payload.analysis, structuredResume: payload.structuredResume ?? null });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Sample analysis failed.");
     } finally {
@@ -176,7 +190,7 @@ export function DashboardClient({ history, sampleMode, quota, signOutHref }: Pro
           {history.length ? (
             <div className="history-list">
               {history.map((report) => (
-                <a href={`/reports/${report.id}`} key={report.id}>
+                <a href={`/reports/${report.id}/overview`} key={report.id}>
                   <span className={`history-score ${report.overallScore >= 75 ? "score-good" : ""}`}>{report.overallScore}</span>
                   <span><strong>{report.filename}</strong><small>{report.mode === "job_match" ? "Job match" : "Standalone"} · {new Date(report.createdAt).toLocaleDateString()}{report.expiresAt ? ` · expires ${new Date(report.expiresAt).toLocaleDateString()}` : ""}</small></span>
                   <em aria-hidden="true">›</em>
@@ -193,7 +207,8 @@ export function DashboardClient({ history, sampleMode, quota, signOutHref }: Pro
       {sample && (
         <section className="sample-result" aria-live="polite" ref={sampleResult} tabIndex={-1}>
           <div className="sample-result-heading"><div><p className="eyebrow">Interactive sample report</p><h2>{sample.filename}</h2><span>Explore the same analysis structure your own resume will receive.</span></div><button type="button" onClick={() => setSample(null)}>Close sample</button></div>
-          <AnalysisView analysis={sample.analysis} compact />
+          <nav className="sample-report-tabs" aria-label="Sample report sections">{SAMPLE_VIEWS.map((item) => <button type="button" aria-pressed={sampleView === item.id} onClick={() => setSampleView(item.id)} key={item.id}>{item.label}</button>)}</nav>
+          <AnalysisView analysis={sample.analysis} compact view={sampleView} structuredResume={sample.structuredResume} />
         </section>
       )}
     </>

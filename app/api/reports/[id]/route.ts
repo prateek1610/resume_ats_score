@@ -3,6 +3,24 @@ import { getReport, removeReport } from "@/lib/reports";
 import { isTrustedMutationRequest, jsonResponse, requestId } from "@/lib/request-security";
 import { getResumeBucket } from "@/lib/storage";
 
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+  const requestIdentifier = requestId(request);
+  const user = await getAppUser();
+  if (!user) return jsonResponse({ error: "Sign in to view this report." }, 401, requestIdentifier);
+
+  const { id } = await context.params;
+  const report = await getReport(id, user.email.toLowerCase());
+  if (!report) return jsonResponse({ error: "Report not found." }, 404, requestIdentifier);
+
+  return jsonResponse({
+    report: {
+      id: report.id,
+      filename: report.filename,
+      structuredResume: report.structuredResume ?? null,
+    },
+  }, 200, requestIdentifier);
+}
+
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   const requestIdentifier = requestId(request);
   if (!isTrustedMutationRequest(request)) return jsonResponse({ error: "This request was blocked for your protection." }, 403, requestIdentifier);

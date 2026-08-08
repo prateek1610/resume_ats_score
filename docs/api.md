@@ -13,13 +13,21 @@ Content type: `multipart/form-data`
 | `resume` | Yes | PDF or DOCX, exact MIME/extension match, 1 byte–10 MB, PDF maximum 15 pages |
 | `jobDescription` | No | Plain text, maximum 20,000 characters |
 
-Success: `201`
+Success: `201`. The report object includes a structured-extraction summary; the complete source-linked extraction is stored with the private saved report for later ATS-preview and editing features.
 
 ```json
-{ "report": { "id": "uuid", "overallScore": 82 } }
+{ "report": { "id": "uuid", "overallScore": 82, "extraction": { "confidence": 90, "warnings": [], "unclassifiedLines": [] } } }
 ```
 
 Validation errors return `400`; missing authentication returns `401`; bounded parsing, storage, or database failures return `500` with `{ "error": "message" }`. If file storage succeeds but report persistence fails, the uploaded object is removed as a compensating rollback.
+
+## `GET /api/reports/:id`
+
+Returns the signed-in owner's structured extraction for a saved report. Every extracted field carries its source line and confidence; missing evidence remains `null` or an empty collection. Reports created before structured extraction was introduced return `structuredResume: null` and can be refreshed by re-uploading the resume.
+
+```json
+{ "report": { "id": "uuid", "filename": "resume.pdf", "structuredResume": { "schemaVersion": 1, "contact": {}, "summary": null, "skills": [], "experience": [], "education": [], "certifications": [], "bullets": [], "sections": [], "extraction": { "confidence": 0, "warnings": [], "unclassifiedLines": [] } } } }
+```
 
 The route applies a 3-attempt/5-minute user burst limit, an additional network-address burst limit and a 10-successful-analysis rolling 24-hour quota. Rate-limited requests return `429`, a `Retry-After` header and a human-readable error. Successful new reports expire after 30 days.
 
