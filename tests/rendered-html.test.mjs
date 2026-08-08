@@ -43,9 +43,163 @@ test("renders the ResumeLens landing journey", async () => {
   );
   const html = await response.text();
   assert.equal(response.status, 200);
-  assert.match(html, /Know what recruiters/);
-  assert.match(html, /Upload resume/);
-  assert.match(html, /signin-with-chatgpt/);
+  assert.match(html, /See what your resume proves/);
+  assert.match(html, /Analyze my resume/);
+  assert.match(html, /7 dimensions/);
+  assert.match(html, /Line-level/);
+  assert.match(html, /Preview a full report/);
+  assert.match(html, /\/login\?return_to=%2Fdashboard/);
+  assert.match(html, /Create account/);
+  assert.match(html, /10 free analyses\/day/);
+  assert.match(html, /retained for 30 days/);
+  assert.match(html, /href="\/privacy"/);
+  assert.match(html, /href="\/terms"/);
+  assert.match(response.headers.get("content-security-policy") ?? "", /default-src 'self'/);
+  assert.match(response.headers.get("content-security-policy") ?? "", /'strict-dynamic'/);
+  assert.doesNotMatch(response.headers.get("content-security-policy") ?? "", /script-src[^;]*'unsafe-inline'/);
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.match(response.headers.get("strict-transport-security") ?? "", /max-age=31536000/);
+  const nonce = response.headers.get("content-security-policy")?.match(/'nonce-([^']+)'/)?.[1];
+  assert.ok(nonce);
+  for (const match of html.matchAll(/<script\b([^>]*)>/gi)) {
+    assert.match(match[1], new RegExp(`\\bnonce=["']${nonce}["']`));
+  }
+});
+
+test("renders public privacy and terms pages", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("legal", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const environment = { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } };
+  const executionContext = { waitUntil() {}, passThroughOnException() {} };
+
+  const privacyResponse = await worker.fetch(
+    new Request("http://localhost/privacy", { headers: { accept: "text/html" } }),
+    environment,
+    executionContext,
+  );
+  const privacyHtml = await privacyResponse.text();
+  assert.equal(privacyResponse.status, 200);
+  assert.match(privacyHtml, /Privacy Policy/);
+  assert.match(privacyHtml, /New reports expire 30 days after creation/);
+  assert.match(privacyHtml, /permanently delete all reports and resume files/);
+
+  const termsResponse = await worker.fetch(
+    new Request("http://localhost/terms", { headers: { accept: "text/html" } }),
+    environment,
+    executionContext,
+  );
+  const termsHtml = await termsResponse.text();
+  assert.equal(termsResponse.status, 200);
+  assert.match(termsHtml, /Terms of Use/);
+  assert.match(termsHtml, /10 saved analyses per rolling 24-hour period/);
+  assert.match(termsHtml, /does not guarantee interviews/);
+});
+
+test("health endpoint fails closed without a database binding", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("health", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const response = await worker.fetch(
+    new Request("http://localhost/api/health"),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  const payload = await response.json();
+  assert.equal(response.status, 503);
+  assert.deepEqual(Object.keys(payload).sort(), ["database", "responseTimeMs", "status"]);
+  assert.equal(payload.status, "degraded");
+  assert.equal(payload.database, "unavailable");
+  assert.match(response.headers.get("cache-control") ?? "", /no-store/);
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+});
+
+test("renders a complete and safe login journey", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("login", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const response = await worker.fetch(
+    new Request("http://localhost/login?return_to=%2Fdashboard", { headers: { accept: "text/html" } }),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /Sign in to continue/);
+  assert.match(html, /Continue with ChatGPT/);
+  assert.match(html, /signin-with-chatgpt\?return_to=%2Fdashboard/);
+  assert.match(html, /Create free account/);
+});
+
+test("renders all configured public authentication methods", async () => {
+  const previous = {
+    url: process.env.SUPABASE_URL,
+    key: process.env.SUPABASE_PUBLISHABLE_KEY,
+    origin: process.env.AUTH_SITE_URL,
+  };
+  process.env.SUPABASE_URL = "https://localhost:9";
+  process.env.SUPABASE_PUBLISHABLE_KEY = "integration-test-publishable-key";
+  process.env.AUTH_SITE_URL = "http://localhost";
+
+  try {
+    const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+    workerUrl.searchParams.set("configured-auth", `${process.pid}-${Date.now()}`);
+    const { default: worker } = await import(workerUrl.href);
+    const response = await worker.fetch(
+      new Request("http://localhost/signup?return_to=%2Fdashboard", { headers: { accept: "text/html" } }),
+      { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+      { waitUntil() {}, passThroughOnException() {} },
+    );
+    const html = await response.text();
+    assert.equal(response.status, 200);
+    assert.doesNotMatch(html, /Google/);
+    assert.match(html, /Email link/);
+    assert.match(html, /action="\/auth\/password\?intent=signup"/);
+    assert.match(html, /At least 15 characters/);
+    assert.match(html, /Confirm password/);
+  } finally {
+    restoreEnvironment("SUPABASE_URL", previous.url);
+    restoreEnvironment("SUPABASE_PUBLISHABLE_KEY", previous.key);
+    restoreEnvironment("AUTH_SITE_URL", previous.origin);
+  }
+});
+
+test("protected dashboard redirects through the ResumeLens login screen", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("protected", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const response = await worker.fetch(
+    new Request("http://localhost/dashboard", { redirect: "manual", headers: { accept: "text/html" } }),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.ok([302, 303, 307, 308].includes(response.status));
+  assert.match(response.headers.get("location") ?? "", /\/login\?return_to=%2Fdashboard$/);
+});
+
+test("canonicalizes saved reports and protects focused report routes", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("report-workspace", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const environment = { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } };
+  const executionContext = { waitUntil() {}, passThroughOnException() {} };
+
+  const canonicalResponse = await worker.fetch(
+    new Request("http://localhost/reports/report-id", { redirect: "manual", headers: { accept: "text/html" } }),
+    environment,
+    executionContext,
+  );
+  assert.ok([302, 303, 307, 308].includes(canonicalResponse.status));
+  assert.match(canonicalResponse.headers.get("location") ?? "", /\/reports\/report-id\/overview$/);
+
+  const protectedResponse = await worker.fetch(
+    new Request("http://localhost/reports/report-id/parsed-resume", { redirect: "manual", headers: { accept: "text/html" } }),
+    environment,
+    executionContext,
+  );
+  assert.ok([302, 303, 307, 308].includes(protectedResponse.status));
+  assert.match(protectedResponse.headers.get("location") ?? "", /\/login\?return_to=%2Freports%2Freport-id%2Fparsed-resume$/);
 });
 
 test("returns a complete authenticated sample analysis", async () => {
@@ -55,7 +209,7 @@ test("returns a complete authenticated sample analysis", async () => {
   const response = await worker.fetch(
     new Request("http://localhost/api/reports/sample", {
       method: "POST",
-      headers: { "oai-authenticated-user-email": "test@example.com" },
+      headers: { "oai-authenticated-user-email": "test@example.com", origin: "http://localhost", "sec-fetch-site": "same-origin" },
     }),
     { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
     { waitUntil() {}, passThroughOnException() {} },
@@ -65,4 +219,22 @@ test("returns a complete authenticated sample analysis", async () => {
   assert.equal(payload.analysis.mode, "job_match");
   assert.equal(typeof payload.analysis.overallScore, "number");
   assert.ok(payload.analysis.recommendations.length > 0);
+  assert.match(payload.analysis.details.targetRole, /Operations Analyst/i);
+  assert.ok(payload.analysis.details.requirementEvidence.length > 0);
+  assert.ok(payload.analysis.details.bulletInsights.length > 0);
+  assert.equal(typeof payload.analysis.details.roleFitScore, "number");
+  assert.equal(payload.structuredResume.contact.name.value, "Jordan Lee");
+  assert.equal(payload.structuredResume.experience.length, 2);
+  assert.equal(payload.structuredResume.bullets.length, 5);
+  assert.ok(payload.structuredResume.extraction.confidence >= 80);
+  assert.ok(payload.analysis.details.mismatches.some((item) => item.requirement === "SQL"));
+  assert.equal(payload.analysis.details.resumeReview.dimensions.length, 7);
+  assert.ok(payload.analysis.details.resumeReview.strengths.some((item) => item.location.includes("line")));
+  assert.ok(payload.analysis.details.resumeReview.suggestedRewrites.some((item) => item.original && item.improved));
+  assert.ok(payload.analysis.details.resumeReview.missingElements.some((item) => item.label === "Professional summary"));
 });
+
+function restoreEnvironment(key, value) {
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
+}

@@ -25,9 +25,21 @@ async function ensureSchema(database: D1Database) {
       recommendations text NOT NULL,
       sections text NOT NULL,
       stats text NOT NULL,
+      analysis_details text,
+      structured_resume text,
+      expires_at integer,
       created_at integer NOT NULL
     )`),
     database.prepare("CREATE INDEX IF NOT EXISTS resume_reports_owner_created_idx ON resume_reports (owner_email, created_at)"),
+    database.prepare("CREATE INDEX IF NOT EXISTS resume_reports_expires_idx ON resume_reports (expires_at)"),
+    database.prepare(`CREATE TABLE IF NOT EXISTS rate_limit_windows (
+      key text PRIMARY KEY NOT NULL,
+      scope text NOT NULL,
+      window_start integer NOT NULL,
+      request_count integer NOT NULL,
+      updated_at integer NOT NULL
+    )`),
+    database.prepare("CREATE INDEX IF NOT EXISTS rate_limit_windows_updated_idx ON rate_limit_windows (updated_at)"),
   ]).catch((error) => {
     initialization = null;
     throw error;
@@ -45,4 +57,11 @@ export async function getDb() {
 
   await ensureSchema(env.DB);
   return drizzle(env.DB, { schema });
+}
+
+export async function getDbBinding() {
+  const { env } = await import("cloudflare:workers");
+  if (!env.DB) throw new Error("Database is unavailable.");
+  await ensureSchema(env.DB);
+  return env.DB;
 }

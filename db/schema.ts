@@ -1,5 +1,6 @@
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import type { Recommendation, ResumeAnalysis } from "@/lib/scoring";
+import type { StructuredResume } from "@/lib/structured-resume";
 
 export const resumeReports = sqliteTable(
   "resume_reports",
@@ -23,9 +24,25 @@ export const resumeReports = sqliteTable(
     recommendations: text("recommendations", { mode: "json" }).$type<Recommendation[]>().notNull(),
     sections: text("sections", { mode: "json" }).$type<ResumeAnalysis["sections"]>().notNull(),
     stats: text("stats", { mode: "json" }).$type<ResumeAnalysis["stats"]>().notNull(),
+    analysisDetails: text("analysis_details", { mode: "json" }).$type<ResumeAnalysis["details"]>(),
+    structuredResume: text("structured_resume", { mode: "json" }).$type<StructuredResume>(),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
   },
   (table) => [
     index("resume_reports_owner_created_idx").on(table.ownerEmail, table.createdAt),
+    index("resume_reports_expires_idx").on(table.expiresAt),
   ],
+);
+
+export const rateLimitWindows = sqliteTable(
+  "rate_limit_windows",
+  {
+    key: text("key").primaryKey(),
+    scope: text("scope").notNull(),
+    windowStart: integer("window_start", { mode: "timestamp_ms" }).notNull(),
+    requestCount: integer("request_count").notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("rate_limit_windows_updated_idx").on(table.updatedAt)],
 );

@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "ResumeLens — ATS Resume Score & Review",
   description:
-    "Score your resume for ATS readability, compare it with a job description, and get prioritized recommendations.",
+    "Get an evidence-based ATS resume review with exact-line feedback, rewrite templates, missing elements, and job-description requirement matching.",
   other: {
     "codex-preview": "development",
   },
@@ -24,6 +24,9 @@ export const metadata: Metadata = {
     shortcut: "/favicon.svg",
   },
 };
+
+// Nonce-based CSP requires every HTML response to be rendered per request.
+export const dynamic = "force-dynamic";
 
 export default function RootLayout({
   children,
