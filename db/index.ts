@@ -26,6 +26,7 @@ async function ensureSchema(database: D1Database) {
       sections text NOT NULL,
       stats text NOT NULL,
       analysis_details text,
+      structured_resume text,
       expires_at integer,
       created_at integer NOT NULL
     )`),

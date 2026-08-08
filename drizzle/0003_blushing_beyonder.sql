@@ -1,0 +1,1 @@
+ALTER TABLE `resume_reports` ADD `structured_resume` text;

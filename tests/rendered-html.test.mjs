@@ -178,6 +178,30 @@ test("protected dashboard redirects through the ResumeLens login screen", async 
   assert.match(response.headers.get("location") ?? "", /\/login\?return_to=%2Fdashboard$/);
 });
 
+test("canonicalizes saved reports and protects focused report routes", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("report-workspace", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const environment = { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } };
+  const executionContext = { waitUntil() {}, passThroughOnException() {} };
+
+  const canonicalResponse = await worker.fetch(
+    new Request("http://localhost/reports/report-id", { redirect: "manual", headers: { accept: "text/html" } }),
+    environment,
+    executionContext,
+  );
+  assert.ok([302, 303, 307, 308].includes(canonicalResponse.status));
+  assert.match(canonicalResponse.headers.get("location") ?? "", /\/reports\/report-id\/overview$/);
+
+  const protectedResponse = await worker.fetch(
+    new Request("http://localhost/reports/report-id/parsed-resume", { redirect: "manual", headers: { accept: "text/html" } }),
+    environment,
+    executionContext,
+  );
+  assert.ok([302, 303, 307, 308].includes(protectedResponse.status));
+  assert.match(protectedResponse.headers.get("location") ?? "", /\/login\?return_to=%2Freports%2Freport-id%2Fparsed-resume$/);
+});
+
 test("returns a complete authenticated sample analysis", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("sample", `${process.pid}-${Date.now()}`);
@@ -199,6 +223,10 @@ test("returns a complete authenticated sample analysis", async () => {
   assert.ok(payload.analysis.details.requirementEvidence.length > 0);
   assert.ok(payload.analysis.details.bulletInsights.length > 0);
   assert.equal(typeof payload.analysis.details.roleFitScore, "number");
+  assert.equal(payload.structuredResume.contact.name.value, "Jordan Lee");
+  assert.equal(payload.structuredResume.experience.length, 2);
+  assert.equal(payload.structuredResume.bullets.length, 5);
+  assert.ok(payload.structuredResume.extraction.confidence >= 80);
   assert.ok(payload.analysis.details.mismatches.some((item) => item.requirement === "SQL"));
   assert.equal(payload.analysis.details.resumeReview.dimensions.length, 7);
   assert.ok(payload.analysis.details.resumeReview.strengths.some((item) => item.location.includes("line")));

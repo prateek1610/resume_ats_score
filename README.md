@@ -8,7 +8,9 @@ ResumeLens is a production-ready ATS resume review web application. Signed-in us
 - Deterministic, explainable scores for keywords, structure, impact, and essentials
 - Deep resume diagnostics covering section health, measurable outcomes, action language, weak phrases, pronouns, bullet readability, and role-specific keyword coverage
 - Recruiter-style strengths, improvement points, section-by-section feedback, prioritized fixes, and concrete rewrite examples
+- Focused multi-route report workspace with Overview, Job Match, Resume Review, Rewrites, Missing Elements and Parsed Resume views
 - PDF and DOCX text extraction with file-size, type, page, and processing limits
+- Structured resume extraction for contact details, summary, skills, experience, education, certifications and source-linked bullet points
 - Verified email/password and passwordless email-link authentication through Supabase Auth
 - Email verification, secure password recovery, protected callback handling, and server-side session checks
 - Private original-resume storage in R2 and report metadata/history in D1

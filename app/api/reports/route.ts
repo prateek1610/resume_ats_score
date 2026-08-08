@@ -8,6 +8,7 @@ import { analyzeResume } from "@/lib/scoring";
 import { extractResumeText, MAX_FILE_SIZE, safeFilename, validateResumeFile, validateResumeFileSignature } from "@/lib/resume-file";
 import { getResumeBucket, ownerStoragePrefix } from "@/lib/storage";
 import { errorType, securityLog } from "@/lib/security-log";
+import { extractStructuredResume } from "@/lib/structured-resume";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,7 @@ export async function POST(request: Request) {
     const jobDescription = sanitizePlainText(parsedJobDescription.data);
 
     const resumeText = await extractResumeText(file);
+    const structuredResume = extractStructuredResume(resumeText);
     const analysis = analyzeResume(resumeText, jobDescription);
     const reportId = crypto.randomUUID();
     const prefix = await ownerStoragePrefix(user.email);
@@ -94,6 +96,7 @@ export async function POST(request: Request) {
       sections: analysis.sections,
       stats: analysis.stats,
       analysisDetails: analysis.details,
+      structuredResume,
       createdAt: new Date(),
       expiresAt: reportExpiryDate(),
     });
@@ -106,7 +109,7 @@ export async function POST(request: Request) {
     } catch {
       // Cleanup is best-effort and must not discard a successfully created report.
     }
-    return jsonResponse({ report: { id: report.id, overallScore: report.overallScore }, quota: { limit: DAILY_ANALYSIS_LIMIT, remaining: Math.max(0, DAILY_ANALYSIS_LIMIT - usedToday - 1) } }, 201, id, {
+    return jsonResponse({ report: { id: report.id, overallScore: report.overallScore, extraction: structuredResume.extraction }, quota: { limit: DAILY_ANALYSIS_LIMIT, remaining: Math.max(0, DAILY_ANALYSIS_LIMIT - usedToday - 1) } }, 201, id, {
       "x-ratelimit-limit": String(DAILY_ANALYSIS_LIMIT),
       "x-ratelimit-remaining": String(Math.max(0, DAILY_ANALYSIS_LIMIT - usedToday - 1)),
     });
