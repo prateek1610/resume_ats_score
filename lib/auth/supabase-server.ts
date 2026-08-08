@@ -12,7 +12,7 @@ export async function createSupabaseServerClient() {
   return createServerClient(config.url, config.publishableKey, {
     cookies: {
       getAll: () => cookieStore.getAll(),
-      setAll: (items) => {
+      setAll: (items: PendingCookie[]) => {
         try {
           for (const item of items) cookieStore.set(item.name, item.value, item.options);
         } catch {
@@ -29,7 +29,7 @@ export function createSupabaseRouteClient(request: NextRequest) {
   const client = createServerClient(config.url, config.publishableKey, {
     cookies: {
       getAll: () => request.cookies.getAll(),
-      setAll: (items) => {
+      setAll: (items: PendingCookie[]) => {
         pendingCookies.push(...items);
       },
     },

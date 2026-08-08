@@ -58,7 +58,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
       </header>
       <div className="report-wrap">
         <div className="report-toolbar">
-          <div><Link className="back-link" href="/dashboard">← All reports</Link><p className="eyebrow">Saved ATS report</p><h1>{report.filename}</h1><p>{report.mode === "job_match" ? "Job-description match" : "Standalone review"} · {report.createdAt.toLocaleDateString()}{report.expiresAt ? ` · available until ${report.expiresAt.toLocaleDateString()}` : ""}</p></div>
+          <div><Link className="back-link" href="/dashboard">← All reports</Link><p className="eyebrow">Saved ATS report</p><h1>{report.filename}</h1><p>{report.mode === "job_match" ? "Job-description match" : "Standalone review"} · {report.createdAt.toLocaleDateString()}{report.expiresAt ? ` · available until ${report.expiresAt?.toLocaleDateString() ?? ""}` : ""}</p></div>
           <div className="report-actions"><a href={`/api/resumes/${report.id}`}>Download resume</a><DeleteReportButton reportId={report.id} /></div>
         </div>
         <AnalysisView analysis={analysis} />

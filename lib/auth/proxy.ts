@@ -1,6 +1,8 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseAuthConfig } from "@/lib/auth/config";
+
+type PendingCookie = { name: string; value: string; options: CookieOptions };
 
 export async function refreshAuthSession(request: NextRequest, requestHeaders = new Headers(request.headers)) {
   const config = getSupabaseAuthConfig();
@@ -10,7 +12,7 @@ export async function refreshAuthSession(request: NextRequest, requestHeaders = 
   const supabase = createServerClient(config.url, config.publishableKey, {
     cookies: {
       getAll: () => request.cookies.getAll(),
-      setAll: (items) => {
+      setAll: (items: PendingCookie[]) => {
         for (const item of items) request.cookies.set(item.name, item.value);
         response = NextResponse.next({ request: { headers: requestHeaders } });
         for (const item of items) response.cookies.set(item.name, item.value, item.options);
