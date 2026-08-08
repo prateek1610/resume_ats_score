@@ -21,8 +21,11 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       "content-disposition": `attachment; filename="${report.filename.replace(/["\\]/g, "")}"`,
       "etag": object.httpEtag,
       "cache-control": "private, no-store",
+      "content-security-policy": "sandbox; default-src 'none'",
       "x-content-type-options": "nosniff",
       "cross-origin-resource-policy": "same-origin",
+      "x-download-options": "noopen",
+      "referrer-policy": "no-referrer",
       "x-request-id": id,
     },
   });

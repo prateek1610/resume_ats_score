@@ -90,6 +90,7 @@ export function DashboardClient({ history, sampleMode, quota, signOutHref }: Pro
       const payload = await response.json() as { error?: string; report?: { id: string } };
       if (!response.ok || !payload.report) throw new Error(payload.error ?? "Analysis failed.");
       router.push(`/reports/${payload.report.id}/overview`);
+      router.push(`/reports/${payload.report.id}`);
     } catch (cause) {
       setError(cause instanceof DOMException && cause.name === "AbortError" ? "The analysis took too long. Please retry with a smaller text-based file." : cause instanceof Error ? cause.message : "Analysis failed. Please retry.");
       setLoading(false);

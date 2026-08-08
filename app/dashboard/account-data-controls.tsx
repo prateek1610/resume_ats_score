@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export function AccountDataControls({ signOutHref }: { signOutHref: string }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
@@ -19,7 +21,17 @@ export function AccountDataControls({ signOutHref }: { signOutHref: string }) {
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Deletion failed.");
-      window.location.assign(signOutHref);
+      if (signOutHref.startsWith("/auth/signout")) {
+        await fetch("/auth/signout", {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ returnTo: "/" }),
+        });
+        router.replace("/");
+        router.refresh();
+      } else {
+        window.location.replace(signOutHref);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Deletion failed. Please retry.");
       setBusy(false);
