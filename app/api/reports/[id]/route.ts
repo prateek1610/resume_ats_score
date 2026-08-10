@@ -3,6 +3,7 @@ import { getReport, removeReport } from "@/lib/reports";
 import { isTrustedMutationRequest, jsonResponse, requestId } from "@/lib/request-security";
 import { getResumeBucket } from "@/lib/storage";
 import { errorType, securityLog } from "@/lib/security-log";
+import { recordAnalyticsEvent } from "@/lib/analytics";
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   const requestIdentifier = requestId(request);
@@ -42,5 +43,6 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     }
   }
   await removeReport(id, ownerEmail);
+  await recordAnalyticsEvent("report_deleted", "single").catch(() => undefined);
   return jsonResponse({ deleted: true }, 200, requestIdentifier);
 }

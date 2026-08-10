@@ -40,6 +40,17 @@ async function ensureSchema(database: D1Database) {
       updated_at integer NOT NULL
     )`),
     database.prepare("CREATE INDEX IF NOT EXISTS rate_limit_windows_updated_idx ON rate_limit_windows (updated_at)"),
+    database.prepare(`CREATE TABLE IF NOT EXISTS analytics_daily (
+      id text PRIMARY KEY NOT NULL,
+      day text NOT NULL,
+      event text NOT NULL,
+      dimension text NOT NULL,
+      event_count integer NOT NULL,
+      total_value integer NOT NULL,
+      updated_at integer NOT NULL
+    )`),
+    database.prepare("CREATE INDEX IF NOT EXISTS analytics_daily_day_idx ON analytics_daily (day)"),
+    database.prepare("CREATE INDEX IF NOT EXISTS analytics_daily_event_day_idx ON analytics_daily (event, day)"),
   ]).catch((error) => {
     initialization = null;
     throw error;

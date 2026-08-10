@@ -114,3 +114,9 @@ Public, non-cached service health probe. It performs a minimal database query an
 or a `503` degraded response without exposing infrastructure details.
 
 All mutation routes reject cross-site browser requests. API responses include a request identifier for support correlation and use `Cache-Control: no-store`.
+
+## `POST /api/analytics`
+
+Accepts a same-origin, maximum 1 KB JSON page-view beacon: `{ "pathname": "/dashboard" }`. The server immediately converts the path to a broad allowlisted category before persistence, so report IDs and other path details are never stored. The endpoint does not accept identity, resume, job-description, referrer, user-agent or device fields.
+
+Analytics is first-party and cookie-free. Daily aggregate rows expire after 90 days. The protected `/admin/analytics` page requires a verified signed-in email listed in the server-only `RESUMELENS_ANALYTICS_ADMIN_EMAILS` variable; all other authenticated users receive a not-found response.

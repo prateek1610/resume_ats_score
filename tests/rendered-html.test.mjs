@@ -178,6 +178,26 @@ test("protected dashboard redirects through the ResumeLens login screen", async 
   assert.match(response.headers.get("location") ?? "", /\/login\?return_to=%2Fdashboard$/);
 });
 
+test("analytics dashboard denies authenticated users outside the admin allowlist", async () => {
+  const previous = process.env.RESUMELENS_ANALYTICS_ADMIN_EMAILS;
+  process.env.RESUMELENS_ANALYTICS_ADMIN_EMAILS = "owner@example.com";
+  try {
+    const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+    workerUrl.searchParams.set("analytics-admin", `${process.pid}-${Date.now()}`);
+    const { default: worker } = await import(workerUrl.href);
+    const response = await worker.fetch(
+      new Request("http://localhost/admin/analytics", {
+        headers: { accept: "text/html", "oai-authenticated-user-email": "member@example.com" },
+      }),
+      { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+      { waitUntil() {}, passThroughOnException() {} },
+    );
+    assert.equal(response.status, 404);
+  } finally {
+    restoreEnvironment("RESUMELENS_ANALYTICS_ADMIN_EMAILS", previous);
+  }
+});
+
 test("canonicalizes saved reports and protects focused report routes", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("report-workspace", `${process.pid}-${Date.now()}`);

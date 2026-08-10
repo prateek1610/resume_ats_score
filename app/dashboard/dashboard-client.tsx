@@ -130,10 +130,10 @@ export function DashboardClient({ history, sampleMode, quota, signOutHref }: Pro
             <span><b>04</b> Missing-elements check</span>
           </div>
 
-          <div className="production-policy" aria-label="Free plan usage and retention">
-            <span><strong>{quota.used === null ? "—" : Math.max(0, quota.limit - quota.used)}</strong> analyses remaining</span>
-            <span><strong>{quota.retentionDays} days</strong> private retention</span>
-            <a href="/privacy">How your data is handled</a>
+          <div className="review-utility-row" aria-label="Free plan usage and retention">
+            <span><i aria-hidden="true">◎</i><b>{quota.used === null ? "—" : Math.max(0, quota.limit - quota.used)}</b> reviews left today</span>
+            <span><i aria-hidden="true">◷</i>Private for <b>{quota.retentionDays} days</b></span>
+            <a href="/privacy">Privacy details <span aria-hidden="true">↗</span></a>
           </div>
 
           {sampleMode && (
@@ -174,9 +174,10 @@ export function DashboardClient({ history, sampleMode, quota, signOutHref }: Pro
             <div className="form-meta">
               <span>{jobDescription.length.toLocaleString()} / 20,000</span>
             </div>
-            <div className={`analysis-mode-card${jobDescription.trim() ? " mode-targeted" : ""}`} aria-live="polite">
-              <span aria-hidden="true">{jobDescription.trim() ? "⌁" : "◎"}</span>
-              <div><strong>{jobDescription.trim() ? "Targeted job-match analysis" : "Standalone resume analysis"}</strong><p>{jobDescription.trim() ? "Your report will map each important job requirement to evidence found in the resume." : "Your report will focus on ATS structure, clarity, impact, tone, redundancy and completeness."}</p></div>
+            <div className={`analysis-mode-strip${jobDescription.trim() ? " mode-targeted" : ""}`} aria-live="polite">
+              <span className="analysis-mode-mark" aria-hidden="true">{jobDescription.trim() ? "⌁" : "◎"}</span>
+              <div><strong>{jobDescription.trim() ? "Targeted job-match review" : "Standalone resume review"}</strong><small>{jobDescription.trim() ? "Requirements mapped to resume evidence" : "Structure · clarity · impact · tone · redundancy · completeness"}</small></div>
+              <span className="analysis-mode-state">Ready</span>
             </div>
             {error && <div className="form-error" role="alert">{error}</div>}
             <button className="analyze-button" type="submit" disabled={loading}>
