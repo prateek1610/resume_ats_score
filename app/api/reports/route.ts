@@ -9,6 +9,7 @@ import { extractResumeText, MAX_FILE_SIZE, safeFilename, validateResumeFile, val
 import { getResumeBucket, ownerStoragePrefix } from "@/lib/storage";
 import { errorType, securityLog } from "@/lib/security-log";
 import { extractStructuredResume } from "@/lib/structured-resume";
+import { recordAnalyticsEvent } from "@/lib/analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -34,12 +35,14 @@ export async function POST(request: Request) {
     const burst = !userBurst.allowed ? userBurst : !addressBurst.allowed ? addressBurst : null;
     if (burst) {
       securityLog("warn", "resume_analysis_rate_limited", id);
+      await recordAnalyticsEvent("analysis_rate_limited", "burst").catch(() => undefined);
       return jsonResponse({ error: `Too many analysis attempts. Try again in ${burst.retryAfterSeconds} seconds.` }, 429, id, { "retry-after": String(burst.retryAfterSeconds) });
     }
 
     const dayStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const usedToday = await countReportsSince(user.email.toLowerCase(), dayStart);
     if (usedToday >= DAILY_ANALYSIS_LIMIT) {
+      await recordAnalyticsEvent("analysis_rate_limited", "daily_quota").catch(() => undefined);
       return jsonResponse({ error: `You have used today’s ${DAILY_ANALYSIS_LIMIT} free analyses. Try again after the rolling 24-hour window resets.` }, 429, id, { "retry-after": "3600" });
     }
 
@@ -102,6 +105,7 @@ export async function POST(request: Request) {
     });
 
     securityLog("info", "resume_analysis_completed", id, { mode: analysis.mode, fileSize: file.size });
+    await recordAnalyticsEvent("analysis_completed", analysis.mode, analysis.overallScore).catch(() => undefined);
     try {
       await cleanOldRateLimits();
       const expired = await claimExpiredReports();
@@ -119,6 +123,7 @@ export async function POST(request: Request) {
     }
     if (error instanceof RequestBodyTooLargeError) return jsonResponse({ error: "The upload request is too large." }, 413, id);
     securityLog("error", "resume_analysis_failed", id, { errorType: errorType(error) });
+    await recordAnalyticsEvent("analysis_failed", "processing").catch(() => undefined);
     return jsonResponse({ error: publicErrorMessage(error), requestId: id }, 500, id);
   }
 }

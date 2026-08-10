@@ -46,3 +46,20 @@ export const rateLimitWindows = sqliteTable(
   },
   (table) => [index("rate_limit_windows_updated_idx").on(table.updatedAt)],
 );
+
+export const analyticsDaily = sqliteTable(
+  "analytics_daily",
+  {
+    id: text("id").primaryKey(),
+    day: text("day").notNull(),
+    event: text("event").notNull(),
+    dimension: text("dimension").notNull(),
+    eventCount: integer("event_count").notNull(),
+    totalValue: integer("total_value").notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("analytics_daily_day_idx").on(table.day),
+    index("analytics_daily_event_day_idx").on(table.event, table.day),
+  ],
+);

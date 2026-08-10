@@ -82,11 +82,12 @@ Without Supabase variables, the development-only preview identity in `lib/app-au
 
 Copy `.env.example` to `.env.local` and replace the sample authentication values when testing the full login journey. Never use a Supabase `service_role` or secret key in this application.
 
-| Variable | Required for public auth | Purpose |
+| Variable | Required | Purpose |
 | --- | --- | --- |
 | `SUPABASE_URL` | Yes | Supabase project URL |
 | `SUPABASE_PUBLISHABLE_KEY` | Yes | Public client key used by the server-side auth adapter |
 | `AUTH_SITE_URL` | Yes | Canonical origin used to construct safe callbacks; use `http://localhost:3000` locally |
+| `RESUMELENS_ANALYTICS_ADMIN_EMAILS` | For analytics dashboard | Comma-separated server-only allowlist for `/admin/analytics` |
 
 The application intentionally keeps these calls server-side, so no browser client or privileged Supabase key is required.
 
@@ -158,6 +159,7 @@ Run `npm run build` for a local production validation. Deploy through the Sites 
 - The scoring engine has no third-party AI/model dependency and never sends resume content to Supabase or another external model.
 - Browser mutation requests are restricted to same-origin traffic, and unexpected infrastructure errors are never returned verbatim.
 - Public access exposes the landing and legal pages; dashboard, report, download, deletion, and analysis routes still require authenticated identity.
+- First-party analytics stores only anonymous daily aggregates for broad route categories and product outcomes. It uses no advertising cookies or third-party tracking scripts, and records expire after 90 days.
 
 ## License
 

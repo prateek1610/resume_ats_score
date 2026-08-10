@@ -4,6 +4,7 @@ import { listAllOwnedReports, removeAllReports } from "@/lib/reports";
 import { hasAcceptableContentLength, isContentType, isTrustedMutationRequest, jsonResponse, readRequestBytes, RequestBodyTooLargeError, requestId } from "@/lib/request-security";
 import { getResumeBucket } from "@/lib/storage";
 import { errorType, securityLog } from "@/lib/security-log";
+import { recordAnalyticsEvent } from "@/lib/analytics";
 
 const confirmationSchema = z.object({ confirmation: z.literal("DELETE") });
 
@@ -33,6 +34,7 @@ export async function DELETE(request: Request) {
     }
     await removeAllReports(user.email.toLowerCase());
     securityLog("info", "account_data_deleted", id, { reportCount: reports.length });
+    await recordAnalyticsEvent("account_deleted", "self_service", reports.length).catch(() => undefined);
     return jsonResponse({ deleted: true, reportsDeleted: reports.length }, 200, id);
   } catch (error) {
     securityLog("error", "account_delete_failed", id, { errorType: errorType(error) });
