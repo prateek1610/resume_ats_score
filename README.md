@@ -16,7 +16,7 @@ ResumeLens is a production-ready ATS resume review web application. Signed-in us
 - Private original-resume storage in R2 and report metadata/history in D1
 - Saved report dashboard, private file download, and permanent report/file deletion
 - Sample report journey that does not consume storage
-- Responsive dark data-product interface with keyboard focus and reduced-motion support
+- Responsive dark marketing experience with a light, document-focused analysis workspace, keyboard focus, and reduced-motion support
 - Input validation, structured error responses, rollback on partial upload failure, and basic structured logging
 - Persistent per-user/IP burst protection and a 10-analysis rolling daily quota
 - Content-signature validation, same-origin mutation checks, security headers, bounded client/server timeouts, and safe public error messages
